@@ -1,0 +1,31 @@
+# 資料快照不進版控（可由 data/fetch.py 重新產生）
+data/raw/
+data/processed/
+*.parquet
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# 圖檔輸出
+figures/
+
+# 模型快取（可由 models/ 重新 fit）
+models/artifacts/
+
+# OS
+.DS_Store
+
+# Claude Code 本機設定
+.claude/settings.local.json
+
+.env
+.env.*
+*.pem
+*.key
+credentials*.json

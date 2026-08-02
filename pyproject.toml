@@ -1,0 +1,29 @@
+[project]
+name = "mlb-framing"
+version = "0.1.0"
+description = "Quantifying MLB catcher pitch framing with GAM strike-probability baselines and crossed random-effects models (2021-2023 Statcast)."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "matplotlib>=3.11.0",
+    "pandas>=3.0.3",
+    "polars>=1.42.1",
+    "pyarrow>=25.0.0",
+    "pybaseball>=2.2.7",
+    "pygam>=0.12.0",
+    "scikit-learn>=1.9.0",
+    "statsmodels>=0.14.6",
+]
+
+[dependency-groups]
+dev = [
+    "ipykernel>=7.3.0",
+    "jupyter>=1.1.1",
+    "nbconvert>=7.17.1",
+    "pytest>=9.1.1",
+]
+
+[tool.pytest.ini_options]
+# 讓 `pytest` 直接可用（不必靠 `python -m pytest` 把 cwd 塞進 sys.path）
+pythonpath = ["."]
+testpaths = ["tests"]
