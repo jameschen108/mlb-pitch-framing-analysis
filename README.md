@@ -2,6 +2,8 @@
 
 **English** | [繁體中文](README.zh-TW.md)
 
+This project started from a podcast - a Taiwanese data scientist working in an MLB front office mentioned that catcher framing was the first project he was handed there. So I tried it.
+
 Some catchers get more strike calls than others on identical pitches. This project asks how much of that gap is associated with the catcher himself, and how much with the umpire and pitcher he happens to work with.
 
 The approach: fit a strike-probability model on location and context but *not* catcher identity, treat its prediction as the counterfactual ("what would an average catcher get called here?"), and take the residual as a first-pass framing number. Then refit as a crossed random-effects model, so catcher, umpire, and pitcher effects have to compete for the same residual instead of all landing on the catcher.
