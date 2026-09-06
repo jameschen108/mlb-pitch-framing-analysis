@@ -107,11 +107,19 @@ def model(logit_base, catcher_idx, umpire_idx, pitcher_idx,
 
 
 def run_nuts(data: dict, num_warmup=500, num_samples=500, chains=2, seed=0, progress=True):
-    import jax
-    import numpyro
+    """跑 NUTS。呼叫端負責在 **import jax 之前** 設好裝置數：
+
+        os.environ["XLA_FLAGS"] = "--xla_force_host_platform_device_count=4"
+
+    不要在這裡呼叫 numpyro.set_host_device_count()——XLA 一旦初始化就鎖住了，
+    同一個 process 裡先跑 2 鏈再跑 4 鏈，後者會安靜地退化成循序執行，只在
+    stderr 留一行 warning，而 wall time 會莫名其妙變兩倍。踩過一次。
+
+    另外量時間一定要 jax.block_until_ready(mcmc.get_samples())：JAX 的陣列是
+    lazy 的，run() 回來時計算還沒完成，不 block 會量到派工時間而不是計算時間。
+    """
     from numpyro.infer import MCMC, NUTS
 
-    numpyro.set_host_device_count(chains)
     kernel = NUTS(model, target_accept_prob=0.9)
     mcmc = MCMC(kernel, num_warmup=num_warmup, num_samples=num_samples,
                 num_chains=chains, progress_bar=progress)
