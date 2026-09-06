@@ -29,3 +29,6 @@ models/artifacts/
 *.pem
 *.key
 credentials*.json
+PLAN.md
+ROADMAP.md
+NOTES.md
