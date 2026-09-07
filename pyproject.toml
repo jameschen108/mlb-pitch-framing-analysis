@@ -5,7 +5,6 @@ description = "Quantifying MLB catcher pitch framing with GAM strike-probability
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "arviz>=1.3.0",
     "matplotlib>=3.11.0",
     "numpyro>=0.21.0",
     "pandas>=3.0.3",

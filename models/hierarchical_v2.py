@@ -120,6 +120,7 @@ def run_nuts(data: dict, num_warmup=500, num_samples=500, chains=2, seed=0, prog
     另外量時間一定要 jax.block_until_ready(mcmc.get_samples())：JAX 的陣列是
     lazy 的，run() 回來時計算還沒完成，不 block 會量到派工時間而不是計算時間。
     """
+    import jax
     from numpyro.infer import MCMC, NUTS
 
     kernel = NUTS(model, target_accept_prob=0.9)
