@@ -34,7 +34,30 @@ TAU_CATCHER = 0.15
 TAU_UMPIRE = 0.20
 TAU_PITCHER = 0.17
 
-SCENARIOS = ("baseline", "unequal", "umpire_confound", "battery", "misspecified")
+HEAVY_TAIL_DF = 3          # t 分布自由度，越小尾巴越重
+OMITTED_BETA = 0.6         # 遺漏變數對 logit 的效果大小
+LOCATION_TILT = 1.5        # 投手球位偏好的強度
+
+SCENARIOS = (
+    "baseline",
+    "unequal",
+    "umpire_confound",
+    "battery",
+    "location_shared",     # 位置交互，但球位分布與捕手無關 → 實際上不構成設錯，見下
+    "location_mix",        # 位置交互 + 各捕手面對不同的球位分布
+    "heavy_tail",          # 捕手效果重尾，違反 N(0, τ²) 先驗
+    "omitted_covariate",   # 有一個影響判決、與捕手相關、但模型看不到的變數
+)
+
+# 前四個情境操弄的是資料結構，後四個操弄的是「模型假設對不對」。
+#
+# location_shared 是一個失敗的設計，刻意留著：它讓捕手效果隨球位變化，看起來像
+# 模型設錯，但球位是 iid 抽的、與捕手無關，所以每位捕手面對的球位分布幾乎相同
+# （各捕手平均球位之間的 sd 只有 0.017）。位置交互項平均之後退化成常數
+# γ_c·E[centred]，也就是另一個常數捕手效果——常數截距模型完全抓得到。
+#
+# 教訓是：要讓「效果隨 x 變化」真的構成設錯，各單位面對的 x 分布必須不同。
+# location_mix 就是補上這一點。
 
 
 @dataclass
@@ -72,8 +95,15 @@ def simulate(
     n_catchers: int = N_CATCHERS,
     per_catcher: int = PITCHES_PER_CATCHER,
     pool: tuple[np.ndarray, np.ndarray] | None = None,
+    confound_strength: float = 0.5,
 ) -> tuple[pl.DataFrame, Truth]:
-    """生成一份合成資料，回傳 (資料, 真值)。"""
+    """生成一份合成資料。
+
+    confound_strength 只對 omitted_covariate 有意義：遺漏變數的捕手層級成分相對於
+    捕手效果本身的大小。0 等於沒有混淆，1 等於混淆和真效果一樣大。掃這個參數比
+    挑單一數值有用——它回答「混淆要多大，區間才會失去意義」，而不是「在我挑的
+    這個強度下會不會壞」。
+    """
     if scenario not in SCENARIOS:
         raise ValueError(f"未知情境 {scenario}；可用：{SCENARIOS}")
     rng = np.random.default_rng(seed)
@@ -82,7 +112,12 @@ def simulate(
     # 捕手效果置中：估計目標是「相對於聯盟平均捕手」，而模型只能把捕手效果估到
     # 相差一個常數（全域水準被截距吸收）。真值如果用未置中的 u_c 定義，兩者就差
     # 一個常數，會在每個情境上表現成同一個假偏誤。這裡直接讓真值本身置中。
-    u_c = rng.normal(0, TAU_CATCHER, n_catchers)
+    if scenario == "heavy_tail":
+        # t(3) 標準化到同樣的 sd，總變異相同但會出現遠離中心的離群捕手。
+        # 模型的 N(0, τ²) 先驗會把這些人過度收縮，區間跟不上。
+        u_c = rng.standard_t(HEAVY_TAIL_DF, n_catchers) * (TAU_CATCHER / np.sqrt(HEAVY_TAIL_DF / (HEAVY_TAIL_DF - 2)))
+    else:
+        u_c = rng.normal(0, TAU_CATCHER, n_catchers)
     u_c = u_c - u_c.mean()
     u_u = rng.normal(0, TAU_UMPIRE, N_UMPIRES)
     u_p = rng.normal(0, TAU_PITCHER, N_PITCHERS)
@@ -104,18 +139,28 @@ def simulate(
         umpire = rng.integers(0, N_UMPIRES, n)
 
     # 投捕配對：battery 情境提高集中度（每位捕手只配少數投手）
-    if scenario == "battery":
+    if scenario in ("battery", "location_mix", "omitted_covariate"):
         per_c = max(2, N_PITCHERS // n_catchers)
         staff = np.array([rng.choice(N_PITCHERS, per_c, replace=False) for _ in range(n_catchers)])
         pitcher = staff[catcher, rng.integers(0, per_c, n)]
     else:
         pitcher = rng.integers(0, N_PITCHERS, n)
 
-    p_base = rng.choice(p_pool, n)
+    if scenario == "location_mix":
+        # 每位投手有自己的球位偏好，捕手又綁定投手群，所以各捕手面對的球位
+        # 分布真的不同——這是 location_shared 缺的那一塊。
+        tilt = rng.uniform(-LOCATION_TILT, LOCATION_TILT, N_PITCHERS)
+        bins = np.quantile(p_pool, np.linspace(0, 1, 41))
+        centres = (bins[:-1] + bins[1:]) / 2
+        w = np.exp(np.outer(tilt, (centres - 0.5) * 2))
+        w /= w.sum(1, keepdims=True)
+        p_base = np.array([rng.choice(centres, p=w[q]) for q in pitcher])
+    else:
+        p_base = rng.choice(p_pool, n)
     logit_base = np.log(p_base / (1 - p_base))
 
     # misspecified：捕手效果隨球位變化，但擬合時仍當成常數截距
-    if scenario == "misspecified":
+    if scenario in ("location_shared", "location_mix"):
         gamma = rng.normal(0, TAU_CATCHER, n_catchers)      # 位置交互，強度同主效果
         gamma = gamma - gamma.mean()
         centred = (p_base - 0.5) * 2                        # −1..1，低機率端到高機率端
@@ -124,11 +169,35 @@ def simulate(
         u_c_i = u_c[catcher]
 
     eta = logit_base + u_c_i + u_u[umpire] + u_p[pitcher]
+
+    if scenario == "omitted_covariate":
+        # 一個真的影響判決、與捕手相關、但模型看不到的變數。這正是 v1 的
+        # Limitations 列的那一串：球種、球速、位移、球場。
+        #
+        # 關鍵在真值怎麼定：Δ 只算 u_c 的貢獻，**不含 z**。也就是問「這個估計有沒有
+        # 分離出捕手自己的效果」，而不是「它有沒有準確估到捕手加上他配到的投手群」。
+        # 前者才是整個專案在問的問題，而估計式會把兩者混在一起。
+        #
+        # z 必須有**捕手層級的成分**才會咬。試過兩個沒用的版本：
+        #   投手層級 → 被投手隨機效果整包吸收（階層 coverage 96.3%）
+        #   逐球雜訊 → 與捕手無關，只是多一點未解釋變異（94.7%）
+        # 任何「控制投手、主審、球位之後仍與捕手相關」的東西，模型只能把它算進
+        # u_c。所以這裡給 z 一個捕手層級成分，而真值不把那份算給捕手。
+        #
+        # 這有點套套邏輯——把資料分不開的東西從真值裡拿掉，coverage 當然會垮。
+        # 但這就是重點：它量出「捕手的技術」和「他碰巧配到的投手群」混在一起時
+        # 會差多少，也說明其他情境的 coverage 漂亮**不等於**可以做因果解讀。
+        zeta = rng.normal(0, confound_strength * TAU_CATCHER / OMITTED_BETA, n_catchers)
+        zeta = zeta - zeta.mean()
+        z = zeta[catcher] + rng.normal(0, 1, n)
+        eta = eta + OMITTED_BETA * z
     y = rng.binomial(1, 1 / (1 + np.exp(-eta)))
 
     # 估計目標：每位捕手在他自己那批球上的平均額外好球率
     p_with = 1 / (1 + np.exp(-eta))
     p_without = 1 / (1 + np.exp(-(eta - u_c_i)))
+    # 註：omitted_covariate 的 eta 已含 z，但 p_with − p_without 只差 u_c_i，
+    # 所以 Δ 算的就是捕手自己的貢獻，z 不在裡面。這正是要的。
     delta = np.zeros(n_catchers)
     for c in range(n_catchers):
         m = catcher == c

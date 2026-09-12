@@ -78,11 +78,21 @@ def hierarchical(df: pl.DataFrame, n_catchers: int, warmup=500, samples=500,
 
 
 def score(est: np.ndarray, lo: np.ndarray, hi: np.ndarray, truth: np.ndarray) -> dict:
+    """整體指標，外加依真實效果大小分層的 coverage。
+
+    分層是必要的：重尾情境下只有少數幾位離群捕手會被過度收縮，30 位裡射失 2 位
+    也只讓總 coverage 掉 6 個百分點，會被平均稀釋掉看不見。真正的失效在尾端。
+    """
     from scipy.stats import spearmanr
+
+    hit = (lo <= truth) & (truth <= hi)
+    extreme = np.abs(truth) >= np.quantile(np.abs(truth), 2 / 3)
     return {
         "bias": float((est - truth).mean()),
         "rmse": float(np.sqrt(((est - truth) ** 2).mean())),
-        "coverage": float(((lo <= truth) & (truth <= hi)).mean()),
+        "coverage": float(hit.mean()),
+        "coverage_extreme": float(hit[extreme].mean()),      # 效果最大的三分之一
+        "coverage_central": float(hit[~extreme].mean()),
         "rank_spearman": float(spearmanr(est, truth).statistic),
         "ci_width": float((hi - lo).mean()),
     }
