@@ -251,7 +251,7 @@ What I would add next: the ABS challenge era. 2026 was excluded here because the
 | Cross-fitting | Out-of-fold baseline probabilities for the train pool | [`models/crossfit.py`](models/crossfit.py) |
 | Hierarchical model | Crossed random effects, NUTS on the shadow zone | [`models/hierarchical_v2.py`](models/hierarchical_v2.py) |
 | Engine comparison | VB vs NUTS, season stability | [`models/compare_engines.py`](models/compare_engines.py) |
-| Intervals | Δ posterior, caterpillar, pairwise probabilities | [`models/intervals.py`](models/intervals.py) |
+| Intervals | Δ posterior, pairwise comparison probabilities | [`models/intervals.py`](models/intervals.py) |
 | Simulation | Eight scenarios, two estimators, four metrics | [`sim/`](sim/) |
 | External validation | Year over year, Savant comparison | [`models/validate.py`](models/validate.py) |
 | Holdout | 2023, spent once | [`models/holdout.py`](models/holdout.py) |
@@ -271,7 +271,7 @@ uv run python -m models.crossfit
 # baseline model scored out of sample
 uv run python -m models.baseline_v2
 
-# posterior intervals, caterpillar, pairwise comparisons
+# posterior intervals and pairwise comparisons
 uv run python -m models.intervals
 
 # simulation: eight scenarios x 100 reps (~2 hours), then the confounder sweep
@@ -291,30 +291,30 @@ Data files, model caches and simulation output are not version-controlled; the c
 
 ```
 data/
-  fetch.py monthly Statcast fetch, cleaning, standardization
-  umpires.py home-plate umpire per game (MLB Stats API)
-  official.py Baseball Savant framing leaderboard (comparison)
+  fetch.py             monthly Statcast fetch, cleaning, standardization
+  umpires.py           home-plate umpire per game (MLB Stats API)
+  official.py          Baseball Savant framing leaderboard (comparison)
 models/
-  baseline_gam.py v1 first-stage GAM strike-probability model
-  framing_runs.py v1 unadjusted residual framing runs
-  hierarchical.py v1 two-stage crossed random-effects model (VB)
-  reliability.py split-half and year-over-year reliability
-  splits.py train/validation by game, 2023 holdout
-  baseline_v2.py baseline fit on train, scored out of sample
-  crossfit.py out-of-fold baseline probabilities
-  hierarchical_v2.py crossed random effects, NUTS on the shadow zone
-  compare_engines.py VB vs NUTS, season stability
-  intervals.py posterior intervals, caterpillar, pairwise probabilities
-  identify.py identifiability diagnostics
-  validate.py year-over-year and Savant comparison
-  holdout.py 2023, spent once
-sim/ simulation study: generate, estimate, run, plot
-notebooks/ 01_eda … 06_multiseason (v1)
-tests/ pipeline invariant checks (pytest)
-make_figures.py v1 figures, both languages
-make_figures_v2.py v2 figures, both languages
-docs/images/ en/ and zh/ figures used by the two READMEs
-archive/ pre-project research plan, superseded
+  baseline_gam.py      v1 first-stage GAM strike-probability model
+  framing_runs.py      v1 unadjusted residual framing runs
+  hierarchical.py      v1 two-stage crossed random-effects model (VB)
+  reliability.py       split-half and year-over-year reliability
+  splits.py            train/validation by game, 2023 holdout
+  baseline_v2.py       baseline fit on train, scored out of sample
+  crossfit.py          out-of-fold baseline probabilities
+  hierarchical_v2.py   crossed random effects, NUTS on the shadow zone
+  compare_engines.py   VB vs NUTS, season stability
+  intervals.py         posterior intervals and pairwise probabilities
+  identify.py          identifiability diagnostics
+  validate.py          year-over-year and Savant comparison
+  holdout.py           2023, spent once
+sim/                   simulation study: generate, estimate, run
+notebooks/             01_eda … 06_multiseason (v1)
+tests/                 pipeline invariant checks (pytest)
+make_figures.py        v1 figures, both languages
+make_figures_v2.py     v2 figures, both languages
+docs/images/           en/ and zh/ figures used by the two READMEs
+archive/               the research plans for both rounds, superseded
 ```
 
 ## Limitations

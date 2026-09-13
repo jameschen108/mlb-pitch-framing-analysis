@@ -21,6 +21,9 @@ repo 沒有任何一處用它，leaderboard、圖、README 全是點值。
 - 若存在與捕手相關的未觀測混淆（例如投手群），混淆到真效果一半以內時區間還撐得住，
   等大時 coverage 掉到 88%，兩倍時 66%。這不是能從資料裡查出來的，只能標明。
 
+圖由 `make_figures_v2.py` 產生（與 v1 的 `make_figures.py` 同樣的分工：分析在
+models/，作圖與雙語標籤在根目錄的 make_figures*.py）。
+
 用法
 ----
     uv run python -m models.intervals
@@ -29,7 +32,6 @@ repo 沒有任何一處用它，leaderboard、圖、README 全是點值。
 from __future__ import annotations
 
 import pickle
-from pathlib import Path
 
 import numpy as np
 import polars as pl
@@ -139,48 +141,6 @@ def separability(post: dict, min_pitches: int = 0) -> dict:
     }
 
 
-def caterpillar(post: dict, min_pitches: int = 0, fname: str = "caterpillar_train.png") -> Path:
-    """全聯盟排序，每人一個點加 95% 區間。
-
-    圖上必須帶模擬的警告，不然它會暗示比實際更高的精度：兩端的區間在模擬裡只涵蓋
-    87–89%，不是 95%。那是收縮的系統性後果，不是這份資料特有的問題。
-    """
-    import matplotlib.pyplot as plt
-
-    lb = leaderboard(post).filter(pl.col("shadow_pitches") >= min_pitches)
-    x = np.arange(lb.height)
-    est = lb["delta"].to_numpy() * 100
-    lo, hi = lb["delta_lo"].to_numpy() * 100, lb["delta_hi"].to_numpy() * 100
-    sig = (lo > 0) | (hi < 0)
-
-    fig, ax = plt.subplots(figsize=(11, 5))
-    ax.axhline(0, color="#333", lw=1, zorder=3)
-    for mask, col, alpha in ((~sig, "#9aa5b1", 0.75), (sig, "#1f77b4", 0.95)):
-        ax.vlines(x[mask], lo[mask], hi[mask], color=col, lw=1.15, alpha=alpha, zorder=2)
-        ax.scatter(x[mask], est[mask], s=7, color=col, zorder=4)
-
-    ax.set_xlabel(f"Catchers, ranked by estimated effect  "
-                  f"({int(sig.sum())} of {lb.height} have intervals excluding zero)")
-    ax.set_ylabel("Extra called strikes per 100 shadow-zone pitches")
-    ax.set_title("Catcher framing effect, 2021–2022 shadow zone, with 95% credible intervals",
-                 fontsize=11.5, pad=11)
-    ax.set_xlim(-2, lb.height + 1)
-    ax.grid(axis="y", alpha=0.25, lw=0.6)
-    for sp in ("top", "right"):
-        ax.spines[sp].set_visible(False)
-    FIG = Path(__file__).resolve().parent.parent / "figures"
-    FIG.mkdir(exist_ok=True)
-    out = FIG / fname
-    fig.tight_layout(rect=(0, 0.075, 1, 1))
-    fig.text(0.5, 0.025,
-             "Simulation puts coverage at the extremes near 88%, not 95% — shrinkage pulls the ends in, "
-             "so the top and bottom are less firm than they look.",
-             ha="center", va="bottom", fontsize=8.5, color="#666")
-    fig.savefig(out, dpi=170)
-    plt.close(fig)
-    return out
-
-
 if __name__ == "__main__":
     import os
     os.environ.setdefault("XLA_FLAGS", "--xla_force_host_platform_device_count=4")
@@ -211,4 +171,3 @@ if __name__ == "__main__":
               f"P(第1 > 第2)={sp['rank1_vs_rank2_p']:.2f}  "
               f"P(第1 > 第10)={sp['rank1_vs_rank10_p']:.2f}")
 
-    print(f"\n圖 → {caterpillar(post)}")

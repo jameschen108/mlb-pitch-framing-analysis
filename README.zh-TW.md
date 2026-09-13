@@ -251,7 +251,7 @@ v1 的順序重現了。但把同樣的擬合跑在每一季上：
 | Cross-fitting | 訓練集的 out-of-fold 基準機率 | [`models/crossfit.py`](models/crossfit.py) |
 | 階層模型 | 交叉隨機效應，NUTS 跑在 shadow zone | [`models/hierarchical_v2.py`](models/hierarchical_v2.py) |
 | 引擎對照 | VB 對 NUTS、季別穩定性 | [`models/compare_engines.py`](models/compare_engines.py) |
-| 區間 | Δ 後驗、caterpillar、成對比較機率 | [`models/intervals.py`](models/intervals.py) |
+| 區間 | Δ 後驗、成對比較機率 | [`models/intervals.py`](models/intervals.py) |
 | 模擬 | 八情境、兩估計式、四指標 | [`sim/`](sim/) |
 | 外部驗證 | 跨季、對照 Savant | [`models/validate.py`](models/validate.py) |
 | Holdout | 2023，只用一次 | [`models/holdout.py`](models/holdout.py) |
@@ -271,7 +271,7 @@ uv run python -m models.crossfit
 # 基準模型的樣本外評分
 uv run python -m models.baseline_v2
 
-# 後驗區間、caterpillar、成對比較
+# 後驗區間與成對比較
 uv run python -m models.intervals
 
 # 模擬：八情境 × 100 次重複（約 2 小時），然後是混淆強度掃描
@@ -291,30 +291,30 @@ uv run python make_figures_v2.py
 
 ```
 data/
-  fetch.py 逐月抓取 Statcast、清理、標準化
-  umpires.py 每場的主審（MLB Stats API）
-  official.py Baseball Savant framing 榜單（對照用）
+  fetch.py             逐月抓取 Statcast、清理、標準化
+  umpires.py           每場的主審（MLB Stats API）
+  official.py          Baseball Savant framing 榜單（對照用）
 models/
-  baseline_gam.py v1 第一層 GAM 好球機率模型
-  framing_runs.py v1 未調整殘差 framing runs
-  hierarchical.py v1 兩階段交叉隨機效應模型（VB）
-  reliability.py 分半與跨季信度
-  splits.py 依場次切訓練／驗證，2023 保留
-  baseline_v2.py 訓練集擬合、樣本外評分的基準模型
-  crossfit.py out-of-fold 基準機率
-  hierarchical_v2.py 交叉隨機效應，NUTS 跑在 shadow zone
-  compare_engines.py VB 對 NUTS、季別穩定性
-  intervals.py 後驗區間、caterpillar、成對比較機率
-  identify.py 識別性診斷
-  validate.py 跨季與 Savant 對照
-  holdout.py 2023，只用一次
-sim/ 模擬研究：生成、估計、執行、作圖
-notebooks/ 01_eda … 06_multiseason（v1）
-tests/ 管線不變量檢查（pytest）
-make_figures.py v1 的圖，雙語
-make_figures_v2.py v2 的圖，雙語
-docs/images/ en/ 與 zh/，兩份 README 使用的圖
-archive/ 動工前的研究計畫，已被取代
+  baseline_gam.py      v1 第一層 GAM 好球機率模型
+  framing_runs.py      v1 未調整殘差 framing runs
+  hierarchical.py      v1 兩階段交叉隨機效應模型（VB）
+  reliability.py       分半與跨季信度
+  splits.py            依場次切訓練／驗證，2023 保留
+  baseline_v2.py       訓練集擬合、樣本外評分的基準模型
+  crossfit.py          out-of-fold 基準機率
+  hierarchical_v2.py   交叉隨機效應，NUTS 跑在 shadow zone
+  compare_engines.py   VB 對 NUTS、季別穩定性
+  intervals.py         後驗區間與成對比較機率
+  identify.py          識別性診斷
+  validate.py          跨季與 Savant 對照
+  holdout.py           2023，只用一次
+sim/                   模擬研究：生成、估計、執行
+notebooks/             01_eda … 06_multiseason（v1）
+tests/                 管線不變量檢查（pytest）
+make_figures.py        v1 的圖，雙語
+make_figures_v2.py     v2 的圖，雙語
+docs/images/           en/ 與 zh/，兩份 README 使用的圖
+archive/               兩輪的研究計畫，已被取代
 ```
 
 ## 限制
