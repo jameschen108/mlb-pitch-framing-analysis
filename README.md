@@ -141,15 +141,15 @@ Among the 63 catchers Savant lists as qualified, 23 have intervals excluding zer
 
 The ends of the distribution separate cleanly from zero. The middle does not, and most adjacent pairs are indistinguishable. On 2021–2022, where the top two are closer together, P(rank 1 beats rank 2) = 0.77.
 
-This outcome was written down as acceptable before the figure existed, in the working plan, along with a commitment to report all three shadow-zone thresholds rather than search for the one that gives the narrowest intervals. Both commitments held.
+The working plan set this down as an acceptable outcome before the figure existed, together with a commitment to report all three shadow-zone thresholds; it is in [`archive/PLAN.md`](archive/PLAN.md), dated in the commit history.
 
-One caveat belongs on this plot and is printed on it: simulation puts coverage at the extremes near 88%, not 95%. Shrinkage pulls the ends in, and the ends are exactly what a leaderboard is read for.
+The plot carries a caption that the rest of this section cannot: simulation puts coverage at the extremes near 88%, not 95%. Shrinkage pulls the ends in, and the ends are exactly what a leaderboard is read for.
 
 ### 6. Testing the estimator against a known truth
 
 Every external check available compares one estimate against another number whose truth is also unknown. Simulation is the only place the truth is set rather than inferred, which is why this is the part of the project that could not be dropped.
 
-Eight scenarios, with known catcher, umpire and pitcher effects generated on the real pitch-location and workload distributions, 100 replications each, both estimators scored on bias, RMSE, coverage and rank recovery. Synthetic datasets are deliberately small — 30 catchers, ~500 pitches each — which is a compute trade-off, not a statistical choice, and means the coverage figures should not be read as exact for full-season samples.
+Eight scenarios, with known catcher, umpire and pitcher effects generated on the real pitch-location and workload distributions, 100 replications each, both estimators scored on bias, RMSE, coverage and rank recovery. Synthetic datasets are small by design — 30 catchers, ~500 pitches each. That is a compute trade-off, and it means the coverage figures should not be read as exact for full-season samples.
 
 <p align="center">
   <img src="docs/images/en/sim_coverage_by_scenario.png" width="700">

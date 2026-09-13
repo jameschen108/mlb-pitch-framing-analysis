@@ -2,7 +2,7 @@
 
 **English** | [繁體中文](METHODS.zh-TW.md)
 
-Technical companion to [`README.md`](README.md). It covers what is being estimated, how, what can and cannot be identified from this design, and where the numbers stop meaning what they appear to mean.
+Technical companion to [`README.md`](README.md). What is being estimated, how, what this design can and cannot identify, and where the numbers stop meaning what they appear to mean.
 
 ---
 
@@ -35,12 +35,12 @@ Choosing Δ rather than the logit-scale coefficient `u_catcher` is deliberate: r
 
 ### 2.1 Out-of-sample baseline probabilities
 
-The framing signal is `actual − predicted`. A baseline model fitted on the pitches it scores flattens those residuals by construction. Every baseline probability in this project comes from a model that never saw the pitch:
+What the whole measure rests on is the residual `actual − predicted`. A baseline model fitted on the pitches it scores flattens those residuals by construction. Every baseline probability in this project comes from a model that never saw the pitch:
 
 - **2021–2022**: five-fold cross-fitting, folds assigned by `game_pk`. Five GAM fits, each predicting the fold it did not see.
 - **2023**: predicted by a model fitted on the 2021–2022 training split only.
 
-The two schemes differ in form; both are out of sample. This asymmetry is worth stating because it is the kind of thing that quietly invalidates a comparison if left implicit.
+The two schemes differ in form; both are out of sample.
 
 The cost of not doing this is measurable. On 2023, the same unadjusted estimator correlates with Savant at 0.990 using an in-sample baseline and 0.958 using an out-of-sample one. The in-sample version shares structure with Savant — which presumably also fits within season — and the correlation is inflated accordingly.
 
@@ -48,7 +48,7 @@ The cost of not doing this is measurable. On 2023, the same unadjusted estimator
 
 Train/validation split for model selection is on `game_pk`, not on individual pitches. Pitches within a game share an umpire, a park, and that day's zone. Splitting by pitch puts correlated observations on both sides and makes validation loss optimistic — which defeats the purpose of splitting at all. The cost is that the split cannot land on exactly 20%; it landed on 19.93%.
 
-The same reasoning governs resampling: where a bootstrap is used, the unit is the game, not the pitch. The inflation this produces was measured rather than assumed — clustering widens standard errors by a factor of **1.21 to 1.29** on shadow-zone residual sums, smaller than the textbook warning suggests but not negligible.
+The same reasoning governs resampling: where a bootstrap is used, the unit is the game, not the pitch. Clustering widens standard errors by a factor of **1.21 to 1.29** on shadow-zone residual sums — smaller than the textbook warning suggests, but not negligible.
 
 ### 2.3 The shadow zone
 
@@ -80,7 +80,7 @@ This cost something and the cost should be stated: with 2023 reserved, year-over
 
 ## 3. Identification
 
-Random effects handle small-sample instability. They do not handle confounding. These are easy to conflate and the distinction is the whole of this section.
+Random effects handle small-sample instability. They do not handle confounding.
 
 ### 3.1 Catcher and umpire separate cleanly
 
@@ -150,17 +150,15 @@ Two-stage: the baseline logit is frozen as an offset and the random effects comp
 
 ## 5. Uncertainty
 
-Every reported quantity carries an interval, and intervals are propagated rather than attached.
-
 **Δ posterior.** For each posterior draw, η is reconstructed for every pitch, Δ is computed as `σ(η) − σ(η − u_catcher)`, and averaged within catcher. The result is a posterior distribution over Δ per catcher; the interval is its 2.5/97.5 percentiles.
 
 **Runs.** `runs = Δ × shadow-zone pitches × 0.125` is computed **per draw**, then summarised. Multiplying a point estimate and attaching an interval afterwards would understate the uncertainty.
 
 **Pairwise comparisons.** `P(Δ_A > Δ_B)` is counted directly from the joint posterior draws, which is the only way to answer "is A better than B" without pretending the two estimates are independent.
 
-**Separability is reported as a headline, not buried.** On 2023: 27 of 102 catchers (26%) have intervals excluding zero; 27% of pairs are resolved at 95%. Restricting to catchers with ≥1,000 shadow-zone pitches raises these to 53% and 55%. On 2021–2022, P(rank 1 > rank 2) = 0.77.
+**Separability.** On 2023: 27 of 102 catchers (26%) have intervals excluding zero; 27% of pairs are resolved at 95%. Restricting to catchers with ≥1,000 shadow-zone pitches raises these to 53% and 55%. On 2021–2022, P(rank 1 > rank 2) = 0.77.
 
-**Coverage at the extremes is lower than nominal.** Simulation shows coverage for the largest third of effects running 3 to 6 points below overall coverage, in every scenario including the unconfounded baseline — 89.0% against 94.7% there. Shrinkage pulls the ends in, and the ends are what a leaderboard is read for. This caveat is printed on the caterpillar plot rather than left to a footnote.
+**Coverage at the extremes is lower than nominal.** Simulation shows coverage for the largest third of effects running 3 to 6 points below overall coverage, in every scenario including the unconfounded baseline — 89.0% against 94.7% there. The estimator is doing this, not the data: partial pooling buys its stability at the tails, which is where a leaderboard is read. The caterpillar plot carries the caveat as a caption.
 
 ---
 
@@ -199,7 +197,7 @@ That last construction is close to tautological: removing from the truth somethi
 
 Bias, RMSE, 95% interval coverage, and rank recovery (Spearman against the true ordering), for both estimators, 100 replications per scenario. Monte Carlo error on coverage is ±1.1%.
 
-**Coverage is also reported stratified by effect magnitude.** This is necessary, not decorative: under heavy tails only one or two of thirty catchers are outliers, so missing both moves aggregate coverage by six points and disappears into the average. The failure is at the tail and the aggregate hides it.
+**Coverage is also reported stratified by effect magnitude.** Under heavy tails only one or two of thirty catchers are outliers, so missing both moves aggregate coverage by six points and disappears into the average. The failure is at the tail; the aggregate hides it.
 
 ### 6.4 The confounding sweep
 
@@ -211,18 +209,27 @@ The generating process is the model's own functional form in five of eight scena
 
 ---
 
-## 7. Limitations, with numbers
+## 7. What the numbers here bound
 
-- **A pitcher's pitches are caught by his most frequent catcher a median 60.5% of the time (90th percentile 84.8%), and the posterior correlation between a catcher's effect and his most-caught pitcher's effect has median ρ = −0.221, with 63.6% of pairs below −0.2.** The two are partially inseparable. The catcher term is association, not skill.
-- **Coverage at the extremes is about 88%, not 95%**, in every simulated scenario including the unconfounded baseline. Top and bottom of the leaderboard are less firm than the intervals imply.
-- **Unmeasured catcher-correlated confounding degrades coverage from 94% to 88% when it matches the size of the effect being measured, and to 66% at twice.** Nothing in the data bounds where on that curve the real analysis sits; section 3.2 establishes that the structure is present, not its magnitude.
-- Simulation used 30 catchers and ~500 pitches each. Coverage figures are not exact at full-season sample sizes.
-- Pitch type, velocity, movement, batter identity and ballpark are unmodelled. Savant applies park and pitcher adjustments; this does not.
-- Run value is flat at 0.125 per stolen strike. Count-dependent run values would rescale the leaderboard and change no statistical conclusion.
-- The count enters the baseline additively, shifting the zone without reshaping it. The reshaping effect is real and shown by fitting counts separately, but is not in the model that generates the framing numbers.
-- With 2023 reserved as a holdout, year-over-year stability rests on one season pair; there is no decay curve.
-- The baseline is mildly miscalibrated in the shadow zone; correcting it moves the leaderboard by about 1% of its spread.
-- 2026 is excluded. The ABS challenge system changes the generating process, and mixing it in would confound a rule change with a modelling result.
+The full list of limitations is in [`README.md`](README.md). Three of them can be given
+figures, and those figures are what this section is for. The rest are scope statements that need no elaboration beyond
+the README's: unmodelled pitch characteristics, a flat run value, the coordinate trim.
+
+**Catcher and pitcher are partially inseparable.** A pitcher's pitches are caught by his
+most frequent catcher a median 60.5% of the time, 84.8% at the 90th percentile. The
+posterior correlation between a catcher's effect and his most-caught pitcher's effect has
+median ρ = −0.221, with 63.6% of pairs below −0.2. The catcher term is association, not
+skill, and this is the channel that makes it so.
+
+**Coverage at the extremes is about 88%, not 95%**, in every simulated scenario,
+including the unconfounded baseline. Shrinkage is doing this, so it is a property of the
+estimator rather than of this dataset, and it applies exactly where a leaderboard is read.
+
+**Unmeasured catcher-correlated confounding costs coverage in a measurable way:** 94% with
+none, 88% when it matches the size of the effect being measured, 66% at twice. Section 3.2
+establishes that this structure is present in the real data. Nothing in the data bounds
+where on that curve the real analysis sits, and no amount of better inference would change
+that. It is a design property, not an estimation one.
 
 ---
 
