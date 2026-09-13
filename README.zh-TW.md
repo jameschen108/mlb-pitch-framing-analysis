@@ -1,214 +1,291 @@
-# MLB 捕手偷好球（Pitch Framing）價值量化
+# 捕手偷好球（Pitch Framing）的量化
 
 [English](README.md) | **繁體中文**
 
-同樣位置的一顆球，有些捕手就是比較容易接成好球。這個專案要拆解的是：這個差距有多少與捕手本身有關，又有多少來自他搭配到的主審和投手。
+這個專案是從一集 podcast 開始的——一位在 MLB 球團工作的台灣資料科學家提到，捕手 framing 是他進去之後接到的第一個專案。所以我也試著做做看。
 
-做法是先用位置與情境（但**不含**捕手身分）建一個好球機率模型，把它的預測當成反事實基準——「換一個平均捕手來接，這裡會被判好球的機率是多少」——再把殘差當成第一版的 framing 數字。接著改用交叉隨機效應模型重估，讓捕手、主審、投手三組效應去爭奪同一份殘差，而不是全部落在捕手頭上。
+同樣位置的一顆球，不同捕手接，主審判好球的機率不同。這個專案的第一版建了一個模型去量它：用進壘位置與情境擬合好球機率曲面，**不放捕手身分**，把預測值當成反事實基準，再讓捕手、主審、投手三組效應去競爭同一份殘差。產出是一份榜單、三個變異成分，以及與 Baseball Savant 公布數字之間 0.990 的相關。
 
-資料是 2021–2023 例行賽的 106 萬顆判定球。未調整的殘差榜單與 Baseball Savant 公布的 framing runs 相關 r = 0.99。季內重現性很高（split-half r = 0.82，校正回整季長度是 0.90），跨季則維持在 r ≈ 0.60。
+這一版問的是另一件事：**那些數字，撐得住第一版對它們下的結論嗎？**
 
-<p align="center">
-  <img src="docs/images/zh/gam_count_contours_2023.png" width="460"><br>
-  <em>好球帶不是固定的：50% 好球機率等高線在 3-0 向外擴張、在 0-2 向內縮小。</em>
-</p>
+有兩個撐不住，而且原因相同——第一版的每一個數字都是點估計，沒有附區間，也沒有任何東西檢驗過這個估計式值不值得相信。
+
+---
+
+## 改了什麼
+
+原本的分析沒有被改寫，仍然可以在 [`v1.0`](../../tree/v1.0) tag 取得。四個具體宣稱被拿來檢驗：
+
+| v1 的宣稱 | 結果 |
+|---|---|
+| 主審之間的變異大於捕手之間（τ 0.233 對 0.192） | **不成立。** 在 2023 上重現（P = 0.81），但在季別之間會翻面，而且從未強到可以當成事實陳述 |
+| 榜單能區分捕手 | **部分成立。** 63 位合格捕手中有 23 位的區間不含零，但多數相鄰名次分不出勝負 |
+| 對 Savant 的 r = 0.990 說明位置模型是對的 | **對，但它說明的比看起來少**——這個相關係數對估計式的品質幾乎完全不敏感 |
+| 產生這一切的變分擬合沒有收斂 | **無害。** NUTS 重現到小數第四位 |
+
+最後一列是我開這一輪的原因。結果它是唯一沒問題的那一條。
+
+---
+
+## 資料與設計
+
+2021–2023 例行賽，只取主審判定球（`called_strike` / `ball`）：106 萬顆，剔除極端座標後 104 萬顆。逐球資料來自 Statcast（`pybaseball`），主審來自 MLB Stats API，以 `game_pk` join。2024 之後不在範圍內；2026 是刻意排除的——ABS 挑戰制那年上路，framing 這個數字的意義隨之改變。
+
+有三個設計決定承擔了大部分的重量。
+
+**基準機率一律樣本外。** framing 的訊號是「實際 − 預測」。如果預測來自一個看過這顆球的模型，殘差會被擬合本身壓平一部分。這裡每一顆球的基準機率都來自沒看過它的模型：2021–2022 用依 `game_pk` 分割的五折 cross-fitting，2023 則用只在 2021–2022 上擬合的模型。
+
+**分析限定在 shadow zone**，也就是基準模型給出 0.2 < p̂ < 0.8 的球。judgement 有疑義的地方才輪得到 framing。這個帶狀區域佔判定球的 14.5%，卻帶有關於捕手效果的 **60.8% Fisher information**——資訊量正比於 p(1−p)，正中好球帶的球幾乎不帶資訊。標準誤只放大 1.27 倍，不是球數比暗示的 2.6 倍。
+
+**2023 隔離起來，只用一次。** 模型形式、門檻、推論引擎、估計目標、要報哪些數字，全部在 2021–2022 上決定完畢才動它。它在最後被使用一次，為的是讓新數字能和 v1 發表的 2023 表格在同一季上並排。
 
 ---
 
 ## 結果
 
-### 1. 好球帶邊緣是模糊的，而且會隨球數移動
+### 1. 好球帶的邊緣是軟的，而且隨球數移動
 
-好球判定率在進壘位置上呈現一圈很寬的過渡帶。framing 只可能發生在這圈裡——正中央的球誰接都是好球，差一英尺的球誰接都是壞球。
-
-球數會讓這圈移動。把位置固定住、比較打者領先與投手領先的球數，差異集中成好球帶邊緣的一圈光環，中央幾乎沒有差別：
+好球判定率在本壘板上呈現一條寬的轉換帶。那條帶是 framing 唯一能起作用的地方。
 
 <p align="center">
-  <img src="docs/images/zh/strike_rate_count_diff_2023.png" width="380">
+  <img src="docs/images/zh/gam_count_contours_2023.png" width="460"><br>
+  <em>50% 好球機率等高線在 3-0 擴張、在 0-2 收縮。</em>
 </p>
 
-這件事對後面很關鍵：0-2 與 3-0 好球率的原始差距（8% vs 63%）大部分是進壘位置造成的假象，因為 3-0 的球本來就多半塞中間。只有控制位置之後，主審真正的球數偏誤才顯現出來。
+這部分與 v1 相同，也仍然是整個專案裡最清楚的一件事。
 
-### 2. 基準模型
+### 2. 誠實評分之後的基準模型
 
-一個 logistic GAM：`plate_x` × 標準化 `plate_z` 的二維張量光滑面，加上打者側、投手側、壞球數、好球數的加性項。2023 季 AUC 0.98，擬合曲面與實證曲面貼合到足以拿來當反事實基準。
+模型形式與 v1 相同——`plate_x` 與標準化 `plate_z` 的張量光滑面，加上打者側、投手側、壞球數、好球數的加性項——在 2021–2022 的訓練分割上重新擬合，並在樣本外評分。
 
-<p align="center">
-  <img src="docs/images/zh/gam_surface_vs_empirical_2023.png" width="620">
-</p>
+| | Log loss |
+|---|--:|
+| 訓練集（樣本內） | 0.17346 |
+| 驗證集（樣本外，依場次分割） | 0.17149 |
 
-高度標準化用 `(plate_z − sz_bot) / (sz_top − sz_bot)`，把每位打者的好球帶壓到 0–1 尺度。有這一步，同一個曲面才能同時適用於 5'6" 的開路先鋒和 6'7" 的一壘手。
+差距是零。410 個基底對上 55 萬列資料再加懲罰項，根本沒有過擬合的空間。**v1 報告樣本內指標是方法上的瑕疵，但它沒有讓任何數字失真**——只有一個例外，見第 3 節。
 
-### 3. 未調整的 framing runs，與官方榜單對照
+校準是另一回事。在樣本外，模型在 p̂ = 0.5 以下高估好球機率、以上低估，整個 shadow zone 偏離一到兩個百分點。這個 S 形是真的——10 萬顆樣本外的球上，六個分箱單調偏移——但重新校準之後，榜單首尾的位移只有 0.32 runs，而榜單本身的全距是 28.5。真實，但不值得處理。
 
-把每位捕手的 `實際 − 預測` 加總、乘上每顆偷來的好球 0.125 runs，做出來的榜單與 Baseball Savant 公布的數字非常接近：63 位合格捕手 r = 0.990、Spearman 0.988，兩端的名字也一樣。
+### 3. r = 0.990 說明了什麼，又沒說明什麼
+
+v1 的頭號驗證，是它的未調整榜單與 Savant 公布 framing runs 之間的相關。這個相關現在可以拆開（2023）：
+
+| 設定 | 對 Savant 的 r |
+|---|--:|
+| v1：未調整殘差、全部判定球、**樣本內**基準 | **0.990** |
+| 未調整殘差、全部判定球、樣本外基準 | 0.958 |
+| 未調整殘差、僅 shadow zone、樣本外 | 0.936 |
+| 階層模型、shadow zone、樣本外 | 0.942 |
+
+由上往下讀：拿掉樣本內基準損失 0.032，限定 shadow zone 再損失 0.022，而**把未調整估計式換成階層模型，增加 0.006**。
+
+最後那個數字才是重點。第 6 節會顯示，在真實存在的混淆結構下，未調整估計式宣稱 95% 的區間實際只涵蓋 74%，而階層模型維持校準。把前者換成後者，對 Savant 的相關只動了千分之六。
+
+**一個分不出「校準良好」與「校準失敗」的統計量，不可能拿來當作校準良好的證據。** v1 的 README 當時已經寫了那個相關不是獨立佐證——它說得比自己知道的還對：那份吻合反映的是方法相似，而其中一部分只不過是雙方都在所評分的那一季內做了樣本內擬合。
 
 <p align="center">
   <img src="docs/images/zh/framing_vs_official_2023.png" width="440">
 </p>
 
-這裡有兩件事要講精確。
+### 4. 捕手、主審、投手——這次帶區間
 
-第一，這是**未調整的殘差榜單，不是階層模型**。它只控制了進壘位置與球數，沒有別的。第 4 節的階層估計是另一個量，這個相關係數並沒有驗證它。
+模型就是 v1 的：基準 logit 凍結成 offset，三組交叉隨機截距競爭殘差。引擎換成 NUTS（numpyro），跑在 shadow zone 子集上，隨機效果採非中心參數化。
 
-第二，兩種方法的建構方式不同。Savant 說明其 framing runs 含**球場與投手調整**；完整模型未公開，對主審身分的處理也沒有文件說明。本專案在這個階段既沒做球場調整、也沒做投手調整。所以這份吻合說明的是位置模型校準良好、失分換算合理，也顯示那些調整並不太會改變榜單順序；它不能獨立佐證任何一方分離出了捕手的真實技術。
+換引擎什麼都沒改變，本來也不會。在完全相同的資料上，兩種引擎對每位捕手效果的相關是 r = 0.9999，變分貝葉斯低估後驗標準差 5%。NUTS 提供的是後驗**樣本**，而下面那種機率非要它不可。
 
-### 4. 階層模型
+2023，也就是 v1 報告的那一季：
 
-分兩階段，因為在百萬列上跑完整貝葉斯並不實際。第一階段凍結 GAM 的預測，第二階段對殘差放三組交叉隨機截距，讓它們互相競爭：
+| | 後驗平均 | 89% 區間 |
+|---|--:|---|
+| τ 捕手 | 0.2001 | [0.169, 0.237] |
+| τ 主審 | 0.2264 | [0.196, 0.261] |
+| τ 投手 | 0.2019 | [0.168, 0.237] |
 
-```
-logit P(strike) = β0 + β1·logit(baseline) + θ_catcher + φ_umpire + ψ_pitcher
-θ_catcher ~ N(0, τ_c²),  φ_umpire ~ N(0, τ_u²),  ψ_pitcher ~ N(0, τ_p²)
-```
+**P(τ_主審 > τ_捕手) = 0.81。**
 
-有意思的是變異成分。2023 季主審之間的差異（τ = 0.233）大於捕手之間（τ = 0.192），投手項（τ = 0.199）也和捕手差不多。在這個模型設定下，一顆邊緣球的判定，由「誰蹲主審」解釋的變異比「誰蹲捕手」更多。
+v1 的順序重現了。但把同樣的擬合跑在每一季上：
 
-<p align="center">
-  <img src="docs/images/zh/hier_variance_components_2023.png" width="380">
-  <img src="docs/images/zh/hier_shrinkage_2023.png" width="380">
-</p>
+| | P(τ_主審 > τ_捕手) |
+|---|--:|
+| 2021 | 0.88 |
+| 2022 | 0.41 |
+| 2023 | 0.81 |
+| 2021–2022 合併 | 0.46 |
 
-Shrinkage 的行為符合預期。判定球數 6,000 顆以上的正牌捕手保留約 85% 的原始數值；不到 500 顆的替補則不管原始數字多漂亮，都只剩下大約四分之一。合格捕手整體的離散度收斂到天真版的 82%，而且兩側一起收。天真估計誇大的是捕手之間的差距，並不是把所有人一律往上灌水。
+順序在 2021 和 2022 之間翻面，而且從未超過 0.88。v1 沒有算錯任何東西，它的數字重現得很好。它是把一件在手上三季中有一季是擲銅板的事情，當成關於棒球的發現寫了出來。
 
-這些是單一模型設定下的**關聯**，不是識別出來的因果效應。球種、球速、位移、打者身分、球場，以及捕手與投手並非隨機配對這件事，都還沒進模型。
-
-### 5. 信度
-
-把每位捕手 2023 的球隨機分成兩半再相關，得到 r = 0.82（50 次分半的平均）；用 Spearman–Brown 校正回整季長度是 R = 0.90。跨季方面，2022 預測 2023 的相關是 r = 0.599。
-
-這兩個數字都是用未調整的殘差率算的，不是階層估計，這樣半季與單季才能直接比較，也不必每次重跑混合模型。
+### 5. 捕手之間到底差多少
 
 <p align="center">
-  <img src="docs/images/zh/reliability_year_over_year.png" width="420">
+  <img src="docs/images/zh/caterpillar_2023.png" width="720">
 </p>
 
-### 6. 三季
+灰色是區間蓋住零的，藍色是不蓋的。2023：
 
-合併 2021–2023 讓每位捕手的數字更穩（Jose Trevino 三季合計 +40 runs 居冠），也補齊了持續性的全貌。連續兩季平均相關 0.603，隔一年則掉到 0.320。這個衰減很接近單純 AR(1) 過程的預測（0.603² = 0.364），所以 framing 看起來不像固定不變的特質，比較像每年會微幅漂移的東西。
+| 限制 | 捕手數 | 區間不含零 | 95% 分得出勝負的配對 |
+|---|--:|--:|--:|
+| 全部 | 102 | 27（26%） | 27% |
+| ≥500 顆 shadow zone 球 | 49 | 20（41%） | 47% |
+| ≥1000 顆 | 15 | 8（53%） | 55% |
+
+在 Savant 列為合格的 63 位捕手中，23 位的區間不含零。
+
+分布的兩端和零清楚地分開了，中段沒有，而且多數相鄰配對分不出勝負。在 2021–2022 上，前兩名更接近，P(第 1 名勝第 2 名) = 0.77。
+
+**這個結果在圖存在之前就被寫進工作計畫，列為可接受的結論**，同時寫下的還有一條承諾：三個 shadow zone 門檻的結果全部報告，不去找那個讓區間最窄的。兩條承諾都守住了。
+
+有一句警告必須放在這張圖上，也確實印在上面：模擬顯示兩端的涵蓋率約 88% 而非 95%。收縮把極端往內拉，而榜單就是給人看兩端的。
+
+### 6. 拿已知真值檢驗估計式
+
+所有能做的外部驗證，都是拿我的估計去比另一個我也不知道真值的東西。模擬是唯一真值由我設定、而非推論出來的地方——這也是為什麼這部分是整個專案裡不能砍的一步。
+
+八個情境，在真實的球位與出賽量分布上生成已知的捕手、主審、投手效果，各重複 100 次，兩個估計式都以 bias、RMSE、涵蓋率、排名還原度評分。合成資料刻意設小——30 位捕手、每人約 500 球——這是計算成本的取捨而非統計上的選擇，因此涵蓋率數字不能當成整季樣本量下的精確值。
+
+<p align="center">
+  <img src="docs/images/zh/sim_coverage_by_scenario.png" width="700">
+</p>
+
+**未調整估計式恰好在有混淆的地方失準。** 它宣稱 95% 的區間，在主審混淆下涵蓋 83%、投捕綁定下 78%、遺漏一個與捕手相關的變數時 74%。沒有混淆的地方它表現正常。階層模型全程維持在 92.9% 到 95.6% 之間。
+
+這八個情境裡有三個是專門為了打壞階層模型的假設而設計的——隨球位變化的捕手效果、違反常態先驗的重尾效果、遺漏變數——沒有一個成功。這比本專案原本想找的結論弱，但也更站得住。
+
+真正撐不住的，是與捕手相關的未觀測混淆。與其挑一個混淆大小回報「會不會壞」，這裡把強度掃了一遍：
+
+<p align="center">
+  <img src="docs/images/zh/sim_confound_sweep.png" width="620">
+</p>
+
+混淆維持在被測效果的一半以內時，涵蓋率守得住；等大時掉到 88%；兩倍時 66%。v1 的 Limitations 用一句「捕手不是隨機分配給投手的」帶過，這張圖就是那句話加上數字。
+
+還有一個沒預期到的發現，就是上圖中實心與空心標記之間的距離：效果最大的三分之一，其涵蓋率比整體低 3 到 6 個百分點，而且**每一個情境都是**，包括基準情境。未調整估計式沒有這個落差，因為它根本不收縮——它的問題是區間到處都太窄。
+
+### 7. 外部驗證分不出來的東西
+
+兩個估計式，跑在完全相同的球上，並排送進僅有的兩種外部驗證：
+
+| 驗證 | 階層模型 | 未調整 | 差異的 95% CI |
+|---|--:|--:|---|
+| 跨季 2021 → 2022（46 位捕手） | 0.684 | 0.637 | [−0.008, +0.103] |
+| 對 Savant，2021（59 位） | 0.892 | 0.914 | [−0.015, +0.068] |
+| 對 Savant，2022（60 位） | 0.952 | 0.961 | [−0.010, +0.027] |
+
+每一個區間都蓋住零。配對 bootstrap 重抽捕手，8,000 次。
+
+模擬能決定性地分開這兩個估計式——74% 對 93% 的涵蓋率。外部驗證完全分不開。以 46 到 60 位捕手的樣本，只有大於約 0.1 的相關係數差距才看得見，而實際差距沒有那麼大。
+
+這是整個專案裡「為什麼模擬重要」最清楚的論證。它同時也精確說明了 r = 0.990 為什麼從來就不是驗證：一個沒有能力分辨好壞估計式的檢查，無法告訴你手上的是哪一種。
+
+### 8. 信度與持續性
+
+與 v1 相同，而且仍然成立。把單季的球隨機分半再相關，得到 split-half r = 0.82，用 Spearman–Brown 校正回整季長度是 R = 0.90。相鄰球季相關約 0.60，隔一年降到 0.32——接近 AR(1) 過程的預測，所以 framing 看起來是一個會緩慢漂移的特質，而不是固定的。
 
 <p align="center">
   <img src="docs/images/zh/persistence_matrix_2021_2023.png" width="360">
-  <img src="docs/images/zh/pooled_leaderboard_2021_2023.png" width="430">
+  <img src="docs/images/zh/catcher_trajectories_2021_2023.png" width="430">
 </p>
-
-<p align="center">
-  <img src="docs/images/zh/catcher_trajectories_2021_2023.png" width="480"><br>
-  <em>最強的 framer 三季都在零線之上，最差的三季都在零線之下。</em>
-</p>
-
-階層模型也在全部 104 萬列建模資料上重跑，效應跨三季共享，給出全專案最穩定的單一捕手估計。三組變異成分在這裡趨於接近（τ ≈ 0.18–0.19），主審仍然最大。
-
-### 2023 排行榜（階層模型）
-
-| 捕手 | 判定球數 | Framing runs |
-|---|--:|--:|
-| Austin Hedges | 4,865 | +16.5 |
-| Patrick Bailey | 6,038 | +13.1 |
-| Francisco Álvarez | 7,430 | +12.5 |
-| Jonah Heim | 7,870 | +9.7 |
-| William Contreras | 7,802 | +9.4 |
-| … | | |
-| Elías Díaz | 8,462 | −11.1 |
-| Keibert Ruiz | 8,926 | −11.0 |
-| Martín Maldonado | 7,891 | −12.0 |
-
-以大約 10 runs 換算 1 勝來看，最好與最差之間差了將近三勝，而這些完全不會出現在傳統的成績單上。
 
 ---
 
-## 方法總覽
+## 2023 榜單
 
-| 階段 | 內容 | Notebook / 模組 |
+以 shadow zone 球數計算的 framing runs，附 95% 可信區間，並列 Savant 同季公布的數字。注意分母不同：這裡只計入判定有疑義的那 14.5% 的球。
+
+| 捕手 | shadow 球數 | framing runs | 95% 區間 | Savant |
+|---|--:|--:|---|--:|
+| Austin Hedges | 791 | +11.1 | [+7.5, +14.6] | +14.5 |
+| Francisco Álvarez | 1,088 | +9.2 | [+5.1, +13.1] | +14.0 |
+| Patrick Bailey | 965 | +6.7 | [+3.1, +10.3] | +17.0 |
+| Jason Delay | 633 | +4.4 | [+1.7, +7.1] | +6.6 |
+| Victor Caratini | 640 | +4.2 | [+1.3, +7.1] | +7.2 |
+| … | | | | |
+| Jose Herrera | 418 | −2.9 | [−4.9, −0.7] | −4.1 |
+| Riley Adams | 424 | −3.0 | [−5.0, −0.9] | −6.1 |
+| Logan O'Hoppe | 540 | −4.1 | [−6.5, −1.7] | −6.4 |
+
+榜首這幾個名字就是 v1 的名字——Hedges、Álvarez、Bailey 在 v1 的 2023 表格裡也是前段。改變的不是誰在榜上，而是這份榜單能承載多少信心：這 63 位裡有 40 位的區間包含零。
+
+---
+
+## 如果重做一次
+
+**我是為了錯的理由開這一輪的。** v1 讓我不安的是它的階層模型用變分貝葉斯擬合而且沒有收斂。結果那是唯一沒問題的一件事。真正的缺口——整個專案沒有任何區間，也沒有任何東西檢驗過估計式值不值得相信——一直擺在明處，而我把它排在第二位。
+
+**我不只一次把雜訊讀成訊號。** 單一組 971 場的驗證分割產生了一個 p ≈ 0.03 的 shadow zone 偏誤；用全部 4,856 場做五折 cross-fitting 之後，那個偏誤消失了，而我當時距離為它重寫整條校準流程不到一小時。另一個情境在 10 次重複時看起來讓涵蓋率下降，跑到 100 次就回到名目值。兩次的共通點都是：那個數字指向我本來就想去的方向。
+
+**我有三個模擬情境什麼都沒測到。** 當每位捕手面對的球位分布都相同時，「隨球位變化的捕手效果」平均之後就退化成一個常數。定義在投手層級的遺漏變數，會被投手隨機效果整包吸收。學到的（用比較慢的方式）：動手寫生成程式之前，先想清楚擬合的模型會如何吸收你正要生成的東西。
+
+**量 JAX 程式的時間而不 block，量到的是派工不是計算。** 第一次的計時說 4 條鏈跑完只要兩秒。
+
+以上每一件都連同日期與走錯的那一步，留在工作日誌裡。
+
+**下一步會想做的**：ABS 挑戰制的年代。2026 在這裡被排除，因為生成過程變了；但「當規則在腳下改變時，一個 framing 數字會怎麼樣」是比這份文件裡任何問題都好的問題。
+
+---
+
+## 方法概覽
+
+| 階段 | 內容 | 模組 |
 |---|---|---|
-| 資料管線 | 按月抓 Statcast、只留判定球、標準化 `plate_z`、存 parquet | [`data/fetch.py`](data/fetch.py) |
-| EDA | 2D 好球判定率熱圖、球數效應 | [`notebooks/01_eda.ipynb`](notebooks/01_eda.ipynb) |
-| 基準模型 | Logistic GAM 好球機率曲面 | [`models/baseline_gam.py`](models/baseline_gam.py), [`02_gam_baseline.ipynb`](notebooks/02_gam_baseline.ipynb) |
-| Framing runs | 未調整殘差 runs、與官方榜單對照 | [`models/framing_runs.py`](models/framing_runs.py), [`03_framing_runs.ipynb`](notebooks/03_framing_runs.ipynb) |
-| 階層模型 | 捕手／主審／投手交叉隨機效應、shrinkage | [`models/hierarchical.py`](models/hierarchical.py), [`04_hierarchical.ipynb`](notebooks/04_hierarchical.ipynb) |
-| 信度分析 | split-half、年度間相關 | [`models/reliability.py`](models/reliability.py), [`05_reliability.ipynb`](notebooks/05_reliability.ipynb) |
-| 三季擴充 | 合併榜單、持續性矩陣、名將軌跡 | [`06_multiseason.ipynb`](notebooks/06_multiseason.ipynb) |
+| 資料管線 | 逐月抓取 Statcast、清理、標準化 | [`data/fetch.py`](data/fetch.py) |
+| 切分 | 依 `game_pk` 切訓練／驗證，2023 保留 | [`models/splits.py`](models/splits.py) |
+| 基準模型 | Logistic GAM，訓練集擬合、樣本外評分 | [`models/baseline_v2.py`](models/baseline_v2.py) |
+| Cross-fitting | 訓練集的 out-of-fold 基準機率 | [`models/crossfit.py`](models/crossfit.py) |
+| 階層模型 | 交叉隨機效應，NUTS 跑在 shadow zone | [`models/hierarchical_v2.py`](models/hierarchical_v2.py) |
+| 引擎對照 | VB 對 NUTS、季別穩定性 | [`models/compare_engines.py`](models/compare_engines.py) |
+| 區間 | Δ 後驗、caterpillar、成對比較機率 | [`models/intervals.py`](models/intervals.py) |
+| 模擬 | 八情境、兩估計式、四指標 | [`sim/`](sim/) |
+| 外部驗證 | 跨季、對照 Savant | [`models/validate.py`](models/validate.py) |
+| Holdout | 2023，只用一次 | [`models/holdout.py`](models/holdout.py) |
 
-逐球資料透過 `pybaseball` 取自 Statcast。主審不在 Statcast 裡，所以改用 MLB Stats API 逐場抓、以 `game_pk` join。對照用的官方榜單則是從 Baseball Savant 取得——`pybaseball.statcast_catcher_framing` 目前壞掉，而舊的 CSV 端點會默默忽略 `year` 參數（不論哪一年都回傳同一份資料），因此 [`data/official.py`](data/official.py) 改為解析榜單頁面內嵌的 JSON。
-
-範圍是 2021–2023 例行賽（`game_type == 'R'`，排除春訓與季後賽），只留判定球（`called_strike` / `ball`）：共 106 萬顆，其中 104 萬顆通過限制段提到的座標修剪。2026 年起刻意排除——ABS 挑戰制度自該季起在大聯盟實施，它並沒有取代人類判定，但確實改變了 framing 這個數字的意義。
-
----
+v1 的模組（`baseline_gam.py`、`framing_runs.py`、`hierarchical.py`、`reliability.py`、notebooks 01–06）沒有被改動，仍然可以執行。
 
 ## 重現
 
-環境用 [uv](https://docs.astral.sh/uv/) 管理：
+環境以 [uv](https://docs.astral.sh/uv/) 管理。v1 的流程未變動，指令見 [`v1.0`](../../tree/v1.0)。這一輪新增：
 
 ```bash
 uv sync
 
-# 1. 逐球資料，一季一季抓（原始月檔會快取）
-uv run python -m data.fetch --season 2021
-uv run python -m data.fetch --season 2022
-uv run python -m data.fetch --season 2023
+# 2021–2022 的 out-of-fold 基準機率（約 20 分鐘，有快取）
+uv run python -m models.crossfit
 
-# 2. 各季基準 GAM → data/processed/statcast_<year>_baseline.parquet
-uv run python -c "from models.baseline_gam import build_baseline_parquet as b; [b(y) for y in (2021,2022,2023)]"
+# 基準模型的樣本外評分
+uv run python -m models.baseline_v2
 
-# 3. 各季主審
-uv run python -c "from data.umpires import fetch_umpires as f; [f(y) for y in (2021,2022,2023)]"
+# 後驗區間、caterpillar、成對比較
+uv run python -m models.intervals
 
-# 4. 階層模型
-uv run python -m models.hierarchical         # 單季（2023）
-uv run python -m models.hierarchical multi   # 三季合併 2021–2023
+# 模擬：八情境 × 100 次重複（約 2 小時），然後是混淆強度掃描
+uv run python -m sim.run 100
+uv run python -m sim.run sweep 50
 
-# 5. 依序執行 notebook（01–03 需要步驟 2；04 需要步驟 3–4；06 需要三季都齊）
-for nb in 01_eda 02_gam_baseline 03_framing_runs 04_hierarchical 05_reliability 06_multiseason; do
-  uv run jupyter nbconvert --to notebook --execute notebooks/$nb.ipynb --inplace
-done
+# 外部驗證，然後是 holdout
+uv run python -m models.validate
+uv run python -m models.holdout
 
-# 6. README 用圖（中英兩套）
-uv run python make_figures.py
-
-uv run pytest -q
+uv run python make_figures_v2.py
 ```
 
-執行時間大致是：每季抓取 15–20 分、每季基準 GAM 約 2 分、單季階層模型幾分鐘、三季合併約一小時。每一步都會快取，所以只有第一次跑會慢。
-
-資料檔、模型快取、notebook 自己輸出的圖都不進版控（見 `.gitignore`），上面的指令可以全部重生。README 內嵌的圖則收在 [`docs/images/`](docs/images/) 並進版控，由 [`make_figures.py`](make_figures.py) 產生而非 notebook，好讓中英兩版各自帶自己語言的標籤。
-
-## 專案結構
-
-```
-data/
-  fetch.py         月別 Statcast 抓取、清理、標準化
-  umpires.py       每場主審（MLB Stats API）
-  official.py      Baseball Savant 官方 framing 榜單（對照用）
-models/
-  baseline_gam.py  第一層 GAM 好球判定基準模型
-  framing_runs.py  未調整殘差 framing runs、官方對照
-  hierarchical.py  兩階段交叉隨機效應模型
-  reliability.py   split-half 與年度間信度
-notebooks/         01_eda … 06_multiseason
-tests/             管線不變量檢查（pytest）
-make_figures.py    重生 docs/images 的中英兩套圖
-docs/images/       en/ 與 zh/，兩份 README 各自使用
-archive/           動工前的研究計畫，已被本 README 取代
-```
+資料檔、模型快取與模擬輸出都不進版控；上面的指令會重新產生它們。
 
 ## 限制
 
-- **這是關聯，不是因果。** 混合模型控制了進壘位置、球數、打者側、投手側，以及捕手、主審、投手三者的身分。它沒有納入球種、球速、位移、打者身分與球場，而且捕手與投手並非隨機配對。捕手項應該讀作「在這個模型設定下與捕手相關的變異」。
-- 混合模型用變分貝葉斯（statsmodels）擬合，會跑到預設迭代上限而未完全收斂。固定效應與變異成分在不同子樣本、不同種子下都穩定，合成資料檢查也能正確還原已知的變異成分（[`tests/test_random_effects.py`](tests/test_random_effects.py)），但用 R 的 `glmmTMB` 做 MLE 會是更紮實的版本。
-- 球數在基準模型裡是加性項，只會平移好球帶、不會改變它的形狀。形狀改變是真實存在的（見前面的等高線圖），也用各球數分別擬合呈現了，但它並沒有進到產生 framing 數字的那個模型裡。
-- 建模前會剔除 |plate_x| > 2.5 英尺、或標準化高度落在 [−1, 2] 之外的球，避免 spline 外插不穩：大約 2% 的球，其中 2023 季 7,386 顆裡只有 1 顆是好球，幾乎不帶 framing 訊號。
-- 判定球數少的投手併成一組以維持混合模型可解（單季 < 100 顆、三季合併 < 150 顆）。這些投手的個別效應本來也會收縮到接近 0。
-- Run value 固定用每顆好球 0.125 runs。真實價值其實隨球數變化——偷到第三個好球遠比偷到第一個壞球值錢——所以每位捕手的總計是近似值。
-
+- **是關聯，不是因果。** 捕手項是「在這個模型設定下與捕手相關的變異」。第 6 節量化了未觀測混淆的後果：當一個與捕手相關的混淆與被測效果等大時，涵蓋率掉到 88%，兩倍時 66%。資料本身無法排除這種可能。
+- **兩端的涵蓋率約 88% 而非 95%**，每一個模擬情境皆然。榜單的頭尾比區間看起來的更不牢靠。
+- 模擬用的是 30 位捕手、每人約 500 球。涵蓋率數字不能直接當成整季樣本量下的精確值。
+- 球種、球速、位移、打者身分、球場都沒有進模型。Savant 有做球場與投手調整，這裡沒有。
+- Run value 沿用 v1 的固定 0.125。改成隨球數變動只會等比例縮放榜單，不改變任何統計結論。
+- holdout 紀律是有代價的：2023 被保留，所以跨季穩定性只剩一組年度配對，沒有衰減曲線。
+- 基準模型在 shadow zone 有輕微校準偏差（第 2 節）。修正它會讓榜單移動約全距的 1%。
 
 ## 參考文獻
 
-- [Pavlidis, H. & Brooks, D. (2014). *Framing and Blocking Pitches: A Regressed,Probabilistic Model*. Baseball Prospectus.](https://www.baseballprospectus.com/news/article/22934/)
-- [Judge, J., Pavlidis, H. & Brooks, D. (2015). *Moving Beyond WOWY: A Mixed Approach to Measuring Catcher Framing*. Baseball Prospectus.](https://www.baseballprospectus.com/news/article/25514/)
-- [Albert, J. (2023). *Called Strikes*.](https://bayesball.github.io/BLOG/Called_Strikes.html)
 - Deshpande & Wyner (2017), *A Hierarchical Bayesian Model of Pitch Framing*, JQAS.
+- Judge, Pavlidis & Brooks (Baseball Prospectus), *Moving Beyond WOWY*.
 - [Baseball Savant catcher framing leaderboard](https://baseballsavant.mlb.com/catcher_framing)（方法說明）。
 
-## 技術棧
+## 技術堆疊
 
-Python 3.12 · polars · pandas · pybaseball · pyGAM · statsmodels · scikit-learn · matplotlib · uv
+Python 3.12 · polars · pandas · pybaseball · pyGAM · statsmodels · numpyro/JAX · scikit-learn · matplotlib · uv
