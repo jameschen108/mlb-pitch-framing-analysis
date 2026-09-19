@@ -29,6 +29,7 @@ from models.intervals import RUN_VALUE
 
 SEASONS = (2021, 2022)
 MIN_SHADOW = 300          # 跨季比較的最低 shadow zone 球數（兩季都要達到）
+N_BOOT = 8000             # 配對 bootstrap 重抽次數
 
 
 def _season_posterior(season: int, n_draws: int = 600) -> pl.DataFrame:
@@ -119,6 +120,76 @@ def vs_savant(est: pl.DataFrame) -> dict:
     return out
 
 
+def paired_bootstrap_diff(pair_a: tuple, pair_b: tuple,
+                          n_boot: int = N_BOOT, seed: int = 0) -> dict:
+    """corr(pair_a) − corr(pair_b) 的 bootstrap 區間，重抽單位是捕手。
+
+    `pair_a` / `pair_b` 各是一組 (x, y)，兩組必須排在**同一批捕手**上。年度穩定性
+    傳的是 (估計_2021, 估計_2022)，對照 Savant 傳的是 (估計, savant)；兩種比較都
+    化成「同一組捕手上，兩個相關的差」。
+
+    重抽必須**配對**：每次抽一組捕手索引，兩邊共用。分開抽會把「哪些捕手入樣」的
+    變異算進去兩次，區間因此過寬——而過寬的區間在這裡剛好支持「兩個估計式沒有
+    差別」，也就是往我想要的方向錯。
+
+    重抽單位是捕手而不是場次（對比 METHODS §2.2）：被比較的量本身已經是每位捕手
+    一個數字，場次層級的聚類吸收在產生那些數字的那一步裡了。
+    """
+    a1, a2 = (np.asarray(v) for v in pair_a)
+    b1, b2 = (np.asarray(v) for v in pair_b)
+    n = len(a1)
+    if not all(len(v) == n for v in (a2, b1, b2)):
+        raise ValueError("四個向量必須等長且排在同一批捕手上")
+
+    r = lambda x, y: np.corrcoef(x, y)[0, 1]
+    rng = np.random.default_rng(seed)
+    d = np.empty(n_boot)
+    for k in range(n_boot):
+        i = rng.integers(0, n, size=n)
+        d[k] = r(a1[i], a2[i]) - r(b1[i], b2[i])
+    return {
+        "diff": float(r(a1, a2) - r(b1, b2)),
+        "lo": float(np.nanpercentile(d, 2.5)),
+        "hi": float(np.nanpercentile(d, 97.5)),
+        "n_boot": n_boot,
+        "n_catchers": n,
+    }
+
+
+def external_check_diffs(est: pl.DataFrame, min_shadow: int = MIN_SHADOW,
+                         n_boot: int = N_BOOT, seed: int = 0) -> dict:
+    """README §7 那張表的最後一欄：每一列「階層 − 未調整」的差，附 95% 區間。
+
+    三個外部檢驗全部蓋住 0，而模擬把同樣這兩個估計式分到 93% vs 74% coverage。
+    差別不在哪個估計式比較好，而在這三個檢驗有沒有能力回答那個問題——46 到 60 位
+    捕手，只有大於約 0.1 的相關差看得出來。
+    """
+    out = {}
+
+    a = est.filter(pl.col("season") == SEASONS[0])
+    b = est.filter(pl.col("season") == SEASONS[1])
+    j = a.join(b, on="catcher", suffix="_b").filter(
+        (pl.col("shadow_pitches") >= min_shadow)
+        & (pl.col("shadow_pitches_b") >= min_shadow)
+    )
+    out[f"year over year {SEASONS[0]}-{SEASONS[1]}"] = paired_bootstrap_diff(
+        (j["hier_delta"].to_numpy(), j["hier_delta_b"].to_numpy()),
+        (j["resid_delta"].to_numpy(), j["resid_delta_b"].to_numpy()),
+        n_boot=n_boot, seed=seed,
+    )
+
+    for season in SEASONS:
+        off = fetch_official_framing(season).rename({"id": "catcher"})
+        k = est.filter(pl.col("season") == season).join(off, on="catcher")
+        t = k["rv_tot"].to_numpy()
+        out[f"vs Savant {season}"] = paired_bootstrap_diff(
+            (k["hier_runs"].to_numpy(), t),
+            (k["resid_runs"].to_numpy(), t),
+            n_boot=n_boot, seed=seed,
+        )
+    return out
+
+
 if __name__ == "__main__":
     import os
     os.environ.setdefault("XLA_FLAGS", "--xla_force_host_platform_device_count=4")
@@ -138,3 +209,8 @@ if __name__ == "__main__":
         print(f"  {season}（{row['n_catchers']} 位共同捕手）")
         for k in ("hierarchical", "residual_runs"):
             print(f"    {k:14s} Pearson {row[k]['pearson']:.3f}   Spearman {row[k]['spearman']:.3f}")
+
+    print(f"\n=== 兩個估計式的差，配對 bootstrap {N_BOOT} 次 ===")
+    print("  外部檢驗的區間全部蓋住 0；模擬則把它們分得很開（sim/）。")
+    for name, d in external_check_diffs(est).items():
+        print(f"  {name:28s} Δr = {d['diff']:+.3f}   95% CI [{d['lo']:+.3f}, {d['hi']:+.3f}]")
