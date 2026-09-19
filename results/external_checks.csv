@@ -1,0 +1,4 @@
+check,n_catchers,hierarchical,residual_runs,diff_hier_minus_resid,diff_ci_lo,diff_ci_hi,n_boot
+year_over_year_2021_2022,46,0.684139,0.636651,0.047489,-0.007412,0.100983,8000
+vs_savant_2021,59,0.892465,0.913809,-0.021344,-0.068133,0.014319,8000
+vs_savant_2022,60,0.952387,0.961270,-0.008884,-0.027063,0.009045,8000
