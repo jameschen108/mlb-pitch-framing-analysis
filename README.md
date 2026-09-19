@@ -4,7 +4,7 @@
 
 This project started from a podcast - a Taiwanese data scientist working in an MLB front office mentioned that catcher framing was the first project he was handed there. So I tried it.
 
-Some catchers get more strike calls than others on identical pitches. The first version of this project built a model to measure that: fit a strike-probability surface on location and context but *not* catcher identity, treat its prediction as the counterfactual, and let catcher, umpire, and pitcher effects compete for the residual. It produced a leaderboard, three variance components, and a correlation of 0.990 against Baseball Savant's published numbers.
+Some catchers get more strike calls than others on identical pitches. The first version of this project built a model to measure that: fit a strike-probability surface on location and context but *not* catcher identity, treat its prediction as the reference expectation for a pitch of that description, and let catcher, umpire, and pitcher effects compete for the residual. It produced a leaderboard, three variance components, and a correlation of 0.990 against Baseball Savant's published numbers.
 
 This version asks a different question: do those numbers support the things the first version said about them?
 
@@ -35,9 +35,9 @@ Three design decisions carry most of the weight.
 
 Out-of-sample baseline probabilities, everywhere. The framing signal is `actual − predicted`. If the prediction came from a model fit on the same pitches, the residuals are partly flattened by construction. Every baseline probability here comes from a model that never saw the pitch it is scoring: within 2021–2022 by five-fold cross-fitting split on `game_pk`, and for 2023 from a model fit only on 2021–2022.
 
-Analysis restricted to the shadow zone, the pitches the baseline model puts at 0.2 < p̂ < 0.8. Framing can only matter where the call is genuinely in doubt. That band is 14.5% of called pitches and carries 60.8% of the Fisher information about a catcher's effect — information scales with p(1−p), and a pitch down the middle carries almost none. Standard errors inflate by a factor of 1.27, not the 2.6 the raw pitch counts suggest.
+Analysis restricted to the shadow zone — used here for a *model-defined* band, the pitches the baseline model puts at 0.2 < p̂ < 0.8, not Statcast's geometric Shadow Zone of one ball-width either side of the rule-book edge. Framing can only matter where the call is genuinely in doubt. That band is 14.5% of called pitches and carries 60.8% of the Fisher information about a catcher's effect — information scales with p(1−p), and a pitch down the middle carries almost none. Standard errors inflate by a factor of 1.27, not the 2.6 the raw pitch counts suggest.
 
-2023 held out and spent once. Model form, threshold, inference engine, estimand, and every reported quantity were settled on 2021–2022 before 2023 was touched. It was used a single time, at the end, so the new numbers could be compared against v1's published 2023 table on the same season.
+2023 locked for the length of v2, and spent once. Model form, threshold, inference engine, estimand, and every reported quantity were settled on 2021–2022 before 2023 was touched, and it was then used a single time, at the end, so the new numbers could be compared against v1's published 2023 table on the same season. It is a locked evaluation set, not an untouched holdout: v1 analysed 2023 and published on it, and comparing against that table is the reason this round spends the season. What the discipline buys is that no v2 decision was tuned against 2023; what it cannot claim is that 2023 was unseen.
 
 ---
 
@@ -98,7 +98,9 @@ So the correlation cannot be evidence that the estimator is sound: it barely mov
 
 ### 4. Catcher, umpire, pitcher — with intervals this time
 
-The model is v1's: baseline logit frozen as an offset, three crossed random intercepts competing for the residual. The engine is NUTS (numpyro) rather than variational Bayes, run on the shadow-zone subset with a non-centred parameterisation.
+The model is v1's: the baseline logit enters as a calibration covariate, three crossed random intercepts compete for the residual. The engine is NUTS (numpyro) rather than variational Bayes, run on the shadow-zone subset with a non-centred parameterisation.
+
+That covariate's coefficient is estimated under a N(1, 1) prior, not fixed — so it is not an *offset*, which is a term whose coefficient is held at 1 by construction. v1's stored fit puts it at 1.031 ([`results/v1_fit_summary.csv`](results/v1_fit_summary.csv)). The freedom earns its keep, absorbing the slope part of the calibration S-shape in section 2 before the random effects see the residual, but it also means the second stage is not scoring the first stage's predictions untouched. A comparison against a fixed coefficient of 1 is not yet reported.
 
 The engine swap changes nothing and was never going to. On identical data the two engines agree on per-catcher effects at r = 0.9999, and variational Bayes understates the posterior standard deviation by 5%. What NUTS provides is posterior *samples*, which is what a probability like the one below requires.
 
@@ -173,13 +175,13 @@ An unplanned finding, visible as the gap between the filled and hollow markers a
 
 The two estimators, run on identical pitches, put side by side against the two external checks available:
 
-| Check | Hierarchical | Unadjusted | 95% CI on the difference |
+| Check | Hierarchical | Unadjusted | 95% CI on hierarchical − unadjusted |
 |---|--:|--:|---|
-| Year over year, 2021 → 2022 (46 catchers) | 0.684 | 0.637 | [−0.008, +0.103] |
-| vs Savant, 2021 (59 catchers) | 0.892 | 0.914 | [−0.015, +0.068] |
-| vs Savant, 2022 (60 catchers) | 0.952 | 0.961 | [−0.010, +0.027] |
+| Year over year, 2021 → 2022 (46 catchers) | 0.684 | 0.637 | [−0.007, +0.101] |
+| vs Savant, 2021 (59 catchers) | 0.892 | 0.914 | [−0.068, +0.014] |
+| vs Savant, 2022 (60 catchers) | 0.952 | 0.961 | [−0.027, +0.009] |
 
-Every interval covers zero. Paired bootstrap over catchers, 8,000 resamples.
+Every interval covers zero. Paired bootstrap over catchers, 8,000 resamples, signed the same way in all three rows so that each interval contains its own row's gap ([`models/validate.py`](models/validate.py), reproduced in [`results/external_checks.csv`](results/external_checks.csv)).
 
 Simulation separates these two estimators decisively — 74% coverage against 93%. The external checks cannot separate them at all. With 46 to 60 catchers, only a correlation gap larger than about 0.1 would be visible, and the gap is not that large.
 
@@ -258,6 +260,22 @@ What I would add next: the ABS challenge era. 2026 was excluded here because the
 
 v1's modules (`baseline_gam.py`, `framing_runs.py`, `hierarchical.py`, `reliability.py`, notebooks 01–06) are unchanged and still run.
 
+## Results tables
+
+Every number in this document traces to a CSV in [`results/`](results/), written from cached model output by `uv run python make_results.py`. That script refits nothing; if a cache is missing it names the command that rebuilds it and skips the table.
+
+| File | What it backs |
+|---|---|
+| [`leaderboard_2023_holdout.csv`](results/leaderboard_2023_holdout.csv) | the 2023 leaderboard below — all 102 catchers, with Δ, framing runs, 95% intervals and Savant's figure |
+| [`leaderboard_2021_2022_train.csv`](results/leaderboard_2021_2022_train.csv) | the same for the pooled 2021–2022 fit, 148 catchers |
+| [`leaderboard_v1_pooled_2021_2023.csv`](results/leaderboard_v1_pooled_2021_2023.csv) | v1's three-season VB leaderboard (section 8) |
+| [`variance_components.csv`](results/variance_components.csv) | section 4's τ table and P(τ_umpire > τ_catcher) |
+| [`separability.csv`](results/separability.csv) | section 5's three thresholds, both fits |
+| [`external_checks.csv`](results/external_checks.csv) | section 7's correlations and bootstrap intervals |
+| [`sim_coverage.csv`](results/sim_coverage.csv) | section 6's eight scenarios × two estimators |
+| [`sim_confound_sweep.csv`](results/sim_confound_sweep.csv) | the confounder-strength sweep |
+| [`v1_fit_summary.csv`](results/v1_fit_summary.csv) | v1's fixed effects, including the estimated `logit_base` coefficient |
+
 ## Reproduce
 
 Environment is managed with [uv](https://docs.astral.sh/uv/). v1's pipeline is unchanged; see [`v1.0`](../../tree/v1.0) for its instructions. This round adds:
@@ -283,6 +301,9 @@ uv run python -m models.validate
 uv run python -m models.holdout
 
 uv run python make_figures_v2.py
+
+# every table in this README, from the caches above — refits nothing
+uv run python make_results.py
 ```
 
 Data files, model caches and simulation output are not version-controlled; the commands regenerate them.
@@ -313,6 +334,8 @@ notebooks/             01_eda … 06_multiseason (v1)
 tests/                 pipeline invariant checks (pytest)
 make_figures.py        v1 figures, both languages
 make_figures_v2.py     v2 figures, both languages
+make_results.py        every published table, as CSV, from cached fits
+results/               those CSVs (version-controlled; the caches are not)
 docs/images/           en/ and zh/ figures used by the two READMEs
 archive/               the research plans for both rounds, superseded
 ```

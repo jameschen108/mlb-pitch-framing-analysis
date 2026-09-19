@@ -1,10 +1,18 @@
 """v2 階層模型：shadow zone + numpyro NUTS。
 
-和 v1（models/hierarchical.py）的模型形式相同——offset 兩階段，基準模型的 logit
-當固定 offset，三個交叉隨機截距在殘差上競爭：
+和 v1（models/hierarchical.py）的模型形式相同——兩階段，基準模型的 logit 當**係數
+自由估計的校準共變量**，三個交叉隨機截距在殘差上競爭：
 
     logit P(strike) = a + b·logit_base + u_catcher + u_umpire + u_pitcher
     u_g = τ_g · z_g,   z_g ~ N(0,1),   τ_g ~ HalfNormal(0.5)
+    a ~ N(0, 2),       b ~ N(1, 1)
+
+**b 不是 offset。** offset 的定義是係數固定為 1；這裡 b 有先驗、會被資料更新。
+v1 的 VB 擬合把它估在 1.031（2023）和 1.026（三季合併），見
+`results/v1_fit_summary.csv`。差距不大——這就是為什麼錯的用語活了好幾稿——但不是 1，
+這就是為什麼它是錯的用語。差別在兩階段怎麼接起來：真正的 offset 會把第一階段的
+預測原封不動送進第二階段，而自由的 b 可以重新縮放它，在隨機效果看到殘差之前先
+吸收掉 README §2 那個 S 形校準偏差的斜率成分。
 
 換掉的是兩件事：
 

@@ -23,7 +23,7 @@ Three properties matter. It is defined **relative to the league average**, not t
 **The estimators.** Two, both targeting Δ:
 
 - **Residual runs** (the v1 approach): `Δ̂_c = mean(actual − baseline predicted)` over that catcher's pitches. No adjustment for umpire or pitcher. Intervals from a binomial standard error.
-- **Hierarchical model**: crossed random intercepts for catcher, umpire and pitcher on the residual, with the baseline logit frozen as an offset. Δ is computed per posterior draw and summarised.
+- **Hierarchical model**: crossed random intercepts for catcher, umpire and pitcher on the residual, with the baseline logit entering as a calibration covariate whose coefficient is estimated, not fixed at 1. Δ is computed per posterior draw and summarised.
 
 Choosing Δ rather than the logit-scale coefficient `u_catcher` is deliberate: residual runs has no `u_catcher`. Comparing the two estimators on `u` would compare different quantities. Δ is what both estimate, and it is what the leaderboard reports, so the simulation in section 6 tests exactly the number that gets published.
 
@@ -50,7 +50,11 @@ Train/validation split for model selection is on `game_pk`, not on individual pi
 
 The same reasoning governs resampling: where a bootstrap is used, the unit is the game, not the pitch. Clustering widens standard errors by a factor of **1.21 to 1.29** on shadow-zone residual sums — smaller than the textbook warning suggests, but not negligible.
 
+One case takes a different unit. Where two estimators are compared against the same external target (§7 of the README), the quantities being correlated are already one number per catcher, and the game-level clustering is absorbed in the step that produced them; there the resampling unit is the catcher, and the resample is paired across the two estimators — `paired_bootstrap_diff` in [`models/validate.py`](models/validate.py). Resampling the two estimators independently would count the "which catchers are in the sample" variance twice and widen the interval, which here would have argued for the conclusion I already expected.
+
 ### 2.3 The shadow zone
+
+**The term is borrowed; the definition is not.** Statcast's Shadow Zone is geometric — a band one ball-width either side of the rule-book strike zone. The zone used throughout this project is *model-defined*: the pitches the fitted baseline puts at 0.2 < p̂ < 0.8. The two overlap heavily but are not interchangeable, and in particular they do not share a denominator, so every figure here that sits beside a Savant figure is computed over a different set of pitches. Read "shadow zone" below as shorthand for the model-defined band.
 
 Analysis is restricted to pitches the baseline model puts at 0.2 < p̂ < 0.8. Two justifications, in order of importance.
 
@@ -72,7 +76,9 @@ Across the 75 catchers with at least 1,000 called pitches, the standard error of
 
 ### 2.4 Holdout discipline
 
-2023 was isolated from the start. Model form, shadow-zone threshold, inference engine, estimand definition and the list of reported quantities were all settled on 2021–2022. 2023 was used once, at the end, so the new figures could be set against v1's published 2023 table on the same season.
+2023 was locked for the duration of v2's development. Model form, shadow-zone threshold, inference engine, estimand definition and the list of reported quantities were all settled on 2021–2022. 2023 was used once, at the end, so the new figures could be set against v1's published 2023 table on the same season.
+
+**It is not a holdout in the strict sense, and the distinction is worth being exact about.** v1 analysed 2023 and published a leaderboard on it, and comparing against that published table is precisely why this round spends the season. So 2023 was never unseen data: it was seen in v1, and the research question in v2 was shaped by what v1 found. What the discipline does buy is that no v2 decision — not the threshold, not the engine, not the estimand, not the list of reported quantities — was tuned against 2023. That is a locked evaluation set for the v2 cycle. It is not an untouched holdout, and calling it one would claim more than the design supports.
 
 This cost something and the cost should be stated: with 2023 reserved, year-over-year stability rests on a single season pair, so there is no decay curve of the kind v1 reported.
 
@@ -138,9 +144,12 @@ Calibration is the real weakness. Out-of-fold, the fitted surface over-predicts 
 ```
 logit P(strike) = a + b·logit_base + u_catcher + u_umpire + u_pitcher
 u_g = τ_g · z_g,    z_g ~ N(0, 1),    τ_g ~ HalfNormal(0.5)
+a ~ N(0, 2),        b ~ N(1, 1)
 ```
 
-Two-stage: the baseline logit is frozen as an offset and the random effects compete for the residual. Pitchers with fewer than 100 pitches in a season are pooled into a single group; their individual effects would shrink to near zero regardless and the level count is otherwise unmanageable.
+**Two-stage, but not an offset model.** The baseline logit enters the second stage as a covariate whose coefficient `b` is estimated under a N(1, 1) prior — not held at 1, which is what the word *offset* means. The distinction is not cosmetic. Under a true offset the second stage scores the first stage's predictions exactly as they come; here `b` is free to rescale them, absorbing the slope component of the §4.1 miscalibration before the random effects ever see the residual. v1's stored fit puts `b` at 1.031 on 2023 and 1.026 on the pooled three seasons ([`results/v1_fit_summary.csv`](results/v1_fit_summary.csv)) — close enough to 1 that the wrong word survived several drafts, and far enough from it that it was the wrong word. **A sensitivity comparison against a fixed `b = 1` is not yet reported.**
+
+Pitchers with fewer than 100 pitches in a season are pooled into a single group; their individual effects would shrink to near zero regardless and the level count is otherwise unmanageable.
 
 **Non-centred parameterisation is not optional.** When τ is small the centred form has a funnel-shaped posterior and NUTS produces divergences. Written non-centred from the start, all fits in this project returned zero or near-zero divergences (2 across 800,000 draws in the simulation study).
 
