@@ -2,6 +2,8 @@
 
 [English](README.md) | **繁體中文**
 
+[![tests](https://github.com/jameschen108/mlb-pitch-framing-analysis/actions/workflows/tests.yml/badge.svg)](https://github.com/jameschen108/mlb-pitch-framing-analysis/actions/workflows/tests.yml)
+
 這個專案是從一集 podcast 開始的——一位在 MLB 球團工作的台灣資料科學家提到，捕手 framing 是他進去之後接到的第一個專案。所以我也試著做做看。
 
 同樣位置的一顆球，不同捕手接，主審判好球的機率不同。這個專案的第一版建了一個模型去量它：用進壘位置與情境擬合好球機率曲面，不放捕手身分，把預測值當成「同樣描述的一顆球該有的期望」，再讓捕手、主審、投手三組效應去競爭同一份殘差。產出是一份榜單、三個變異成分，以及與 Baseball Savant 公布數字之間 0.990 的相關。
@@ -352,6 +354,7 @@ make_results.py        每一張發表的表，從快取輸出成 CSV
 results/               那些 CSV（進版控；快取本身不進）
 docs/images/           en/ 與 zh/，兩份 README 使用的圖
 archive/               兩輪的研究計畫，已被取代
+.github/workflows/     CI：只跑合成資料的 pytest，不下載任何東西
 ```
 
 ## 限制
@@ -378,3 +381,7 @@ archive/               兩輪的研究計畫，已被取代
 ## 技術堆疊
 
 Python 3.12 · polars · pandas · pybaseball · pyGAM · statsmodels · numpyro/JAX · scikit-learn · matplotlib · uv
+
+## 授權
+
+[MIT](LICENSE)。Statcast 資料取自 Baseball Savant，適用 MLB 的使用條款；本 repo 不轉散布任何資料檔。

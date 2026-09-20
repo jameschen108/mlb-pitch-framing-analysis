@@ -2,6 +2,8 @@
 
 **English** | [繁體中文](README.zh-TW.md)
 
+[![tests](https://github.com/jameschen108/mlb-pitch-framing-analysis/actions/workflows/tests.yml/badge.svg)](https://github.com/jameschen108/mlb-pitch-framing-analysis/actions/workflows/tests.yml)
+
 This project started from a podcast - a Taiwanese data scientist working in an MLB front office mentioned that catcher framing was the first project he was handed there. So I tried it.
 
 Some catchers get more strike calls than others on identical pitches. The first version of this project built a model to measure that: fit a strike-probability surface on location and context but *not* catcher identity, treat its prediction as the reference expectation for a pitch of that description, and let catcher, umpire, and pitcher effects compete for the residual. It produced a leaderboard, three variance components, and a correlation of 0.990 against Baseball Savant's published numbers.
@@ -352,6 +354,7 @@ make_results.py        every published table, as CSV, from cached fits
 results/               those CSVs (version-controlled; the caches are not)
 docs/images/           en/ and zh/ figures used by the two READMEs
 archive/               the research plans for both rounds, superseded
+.github/workflows/     CI: pytest on synthetic data, no downloads
 ```
 
 ## Limitations
@@ -378,3 +381,7 @@ archive/               the research plans for both rounds, superseded
 ## Tech stack
 
 Python 3.12 · polars · pandas · pybaseball · pyGAM · statsmodels · numpyro/JAX · scikit-learn · matplotlib · uv
+
+## License
+
+[MIT](LICENSE). Statcast data is retrieved from Baseball Savant and is subject to MLB's terms; none of it is redistributed here.

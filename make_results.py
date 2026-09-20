@@ -42,11 +42,18 @@ def _need(path: Path, how: str):
 
 
 def _catcher_names() -> pl.DataFrame:
-    """mlbam_id → 姓名。Savant 榜單是唯一有名字的來源，三季聯集取第一次出現。"""
-    from data.official import fetch_official_framing
+    """mlbam_id → 姓名。Savant 榜單是唯一有名字的來源，三季聯集取第一次出現。
+
+    **只讀已經抓下來的快取，不觸發下載。** 這支程式的契約是「只讀快取」，網路也
+    算在內：沒有快取時它該少一個 name 欄位，而不是安靜地去打 savant 的頁面。CI 因
+    此可以完全離線跑。
+    """
+    from data.official import RAW_DIR, fetch_official_framing
 
     frames = []
     for season in (2023, 2022, 2021):
+        if not (RAW_DIR / f"official_framing_{season}.parquet").exists():
+            continue
         try:
             frames.append(fetch_official_framing(season).select("id", "name"))
         except Exception:
