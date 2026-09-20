@@ -1,0 +1,30 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      # --frozen：用 uv.lock 裡鎖住的版本，不要在 CI 悄悄解析出新的。
+      # lock file 本身裝不裝得起來，也是這一步在測的東西之一。
+      - name: install
+        run: uv sync --frozen
+
+      # tests/ 全部用合成資料，不下載任何東西（Statcast 快取是 gitignored 的）。
+      - name: pytest
+        run: uv run pytest -q
+
+      # make_results.py 在快取缺席時應該乾淨退出、列出該跑哪些指令，而不是 traceback。
+      # CI 上一個快取都沒有，所以這一步正好測到那條路徑。
+      - name: make_results degrades cleanly without caches
+        run: uv run python make_results.py
