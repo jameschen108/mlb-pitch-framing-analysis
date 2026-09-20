@@ -7,12 +7,13 @@
     u_g = τ_g · z_g,   z_g ~ N(0,1),   τ_g ~ HalfNormal(0.5)
     a ~ N(0, 2),       b ~ N(1, 1)
 
-**b 不是 offset。** offset 的定義是係數固定為 1；這裡 b 有先驗、會被資料更新。
-v1 的 VB 擬合把它估在 1.031（2023）和 1.026（三季合併），見
-`results/v1_fit_summary.csv`。差距不大——這就是為什麼錯的用語活了好幾稿——但不是 1，
-這就是為什麼它是錯的用語。差別在兩階段怎麼接起來：真正的 offset 會把第一階段的
-預測原封不動送進第二階段，而自由的 b 可以重新縮放它，在隨機效果看到殘差之前先
-吸收掉 README §2 那個 S 形校準偏差的斜率成分。
+**b 不是 offset。** offset 的定義是係數固定為 1；這裡 b 有先驗、會被資料更新，而且
+在 train pool 上估出來是 1.089，95% 區間 [1.071, 1.107]——不含 1。差別在兩階段怎麼
+接起來：真正的 offset 會把第一階段的預測原封不動送進第二階段，而自由的 b 可以重新
+縮放它，在隨機效果看到殘差之前先吸收掉 README §2 那個 S 形校準偏差的斜率成分。
+
+把 b 釘死在 1（`slope=1.0`）重跑，榜單相關 r = 0.9997、單一捕手最大位移 0.40 runs：
+假設是錯的，但沒有一個發表的結論靠它。對照在 models/sensitivity.py。
 
 換掉的是兩件事：
 
@@ -95,13 +96,19 @@ def encode(df: pl.DataFrame) -> dict:
 
 
 def model(logit_base, catcher_idx, umpire_idx, pitcher_idx,
-          n_catcher, n_umpire, n_pitcher, y=None):
+          n_catcher, n_umpire, n_pitcher, y=None, slope=None):
+    """slope=None 時 b 自由估計（預設）；給定數值時把 b 釘死在該值。
+
+    `slope=1.0` 就是文件一度誤稱的那個 offset 模型——係數固定為 1，第一階段的預測
+    原封不動進入第二階段。models/sensitivity.py 用它跑對照。
+    """
     import jax.numpy as jnp
     import numpyro
     import numpyro.distributions as dist
 
     a = numpyro.sample("a", dist.Normal(0.0, 2.0))
-    b = numpyro.sample("b", dist.Normal(1.0, 1.0))
+    b = (numpyro.sample("b", dist.Normal(1.0, 1.0)) if slope is None
+         else numpyro.deterministic("b", jnp.asarray(float(slope))))
 
     eta = a + b * logit_base
     for name, idx, n in (("catcher", catcher_idx, n_catcher),
@@ -116,7 +123,38 @@ def model(logit_base, catcher_idx, umpire_idx, pitcher_idx,
     numpyro.sample("obs", dist.Bernoulli(logits=eta), obs=y)
 
 
-def run_nuts(data: dict, num_warmup=500, num_samples=500, chains=2, seed=0, progress=True):
+def delta_draws(samples: dict, data: dict, logit_base: np.ndarray,
+                n_draws: int = 1000) -> tuple:
+    """每位捕手的 Δ 後驗抽樣，外加每位捕手的球數。
+
+        Δ_c = mean_i [ P(strike | c 接) − P(strike | 聯盟平均捕手接) ]
+
+    對該捕手的每一顆球，比較含 u_catcher 與不含 u_catcher 的預測機率，再平均。
+    逐抽樣計算，所以區間可以一路傳遞到 framing runs。
+
+    （models/intervals.py、holdout.py、validate.py 各有一份等價的內嵌實作，早於
+    這個函式；它們的快取已經產生，沒有跟著改，值得之後收攏成一處。）
+    """
+    ci = data["catcher_idx"]
+    n_c = len(data["catcher_levels"])
+    a, b = np.asarray(samples["a"]), np.asarray(samples["b"])
+    uc, uu, up = (np.asarray(samples[f"u_{g}"]) for g in ("catcher", "umpire", "pitcher"))
+    take = np.linspace(0, len(a) - 1, min(n_draws, len(a))).astype(int)
+
+    order = np.argsort(ci, kind="stable")
+    bounds = np.searchsorted(ci[order], np.arange(n_c + 1))
+    draws = np.empty((len(take), n_c))
+    for k, t in enumerate(take):
+        eta = (a[t] + b[t] * logit_base + uc[t][ci]
+               + uu[t][data["umpire_idx"]] + up[t][data["pitcher_idx"]])
+        delta = 1 / (1 + np.exp(-eta)) - 1 / (1 + np.exp(-(eta - uc[t][ci])))
+        ds = delta[order]
+        draws[k] = [ds[bounds[j]:bounds[j + 1]].mean() for j in range(n_c)]
+    return draws, np.diff(bounds)
+
+
+def run_nuts(data: dict, num_warmup=500, num_samples=500, chains=2, seed=0,
+             progress=True, slope=None):
     """跑 NUTS。呼叫端負責在 **import jax 之前** 設好裝置數：
 
         os.environ["XLA_FLAGS"] = "--xla_force_host_platform_device_count=4"
@@ -144,5 +182,6 @@ def run_nuts(data: dict, num_warmup=500, num_samples=500, chains=2, seed=0, prog
         n_umpire=len(data["umpire_levels"]),
         n_pitcher=len(data["pitcher_levels"]),
         y=data["y"],
+        slope=slope,
     )
     return mcmc
