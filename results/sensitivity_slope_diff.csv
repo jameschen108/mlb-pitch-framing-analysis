@@ -1,0 +1,2 @@
+n_catchers,runs_pearson,runs_spearman,runs_max_abs_diff,runs_mean_abs_diff,spread_free,spread_fixed,max_rank_change,top10_overlap,tau_catcher_shift,tau_umpire_shift
+148,0.999738,0.999071,0.399160,0.055916,28.866983,29.143110,12,10,0.004604,0.004098

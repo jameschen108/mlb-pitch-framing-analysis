@@ -18,7 +18,7 @@
 
 | v1 的宣稱 | 結果 |
 |---|---|
-| 主審之間的變異大於捕手之間（τ 0.233 對 0.192） | **不成立。** 在 2023 上重現（P = 0.81），但在季別之間會翻面，而且從未強到可以當成事實陳述 |
+| 主審之間的變異大於捕手之間（τ 0.233 對 0.192） | **不成立。** 在 2023 上重現（P = 0.81），但在季別之間會翻面、隨 shadow zone 門檻移動，而且從未強到可以當成事實陳述 |
 | 榜單能區分捕手 | **部分成立。** 63 位合格捕手中有 23 位的區間不含零，但多數相鄰名次分不出勝負 |
 | 對 Savant 的 r = 0.990 說明位置模型是對的 | **對，但它說明的比看起來少**——這個相關係數對估計式的品質幾乎完全不敏感 |
 | 產生這一切的變分擬合沒有收斂 | **無害。** NUTS 重現到小數第四位 |
@@ -100,7 +100,9 @@ v1 的頭號驗證，是它的未調整榜單與 Savant 公布 framing runs 之�
 
 模型就是 v1 的：基準 logit 當校準共變量進入第二階段，三組交叉隨機截距競爭殘差。引擎換成 NUTS（numpyro），跑在 shadow zone 子集上，隨機效果採非中心參數化。
 
-這個共變量的係數是在 N(1, 1) 先驗下估計出來的，不是固定值——所以它不是 *offset*，offset 的定義正是係數依構造固定為 1。v1 存下來的擬合把它估在 1.031（[`results/v1_fit_summary.csv`](results/v1_fit_summary.csv)）。這份自由是有用的：它在隨機效果看到殘差之前，先吸收掉第 2 節那個校準 S 形的斜率成分；但它同時也表示第二階段並不是原封不動地對第一階段的預測評分。固定係數為 1 的對照目前還沒有報告。
+這個共變量的係數是估計出來的，不是固定值——所以它不是 *offset*，offset 的定義正是係數依構造固定為 1。自由擬合的結果是 **1.089，95% 區間 [1.071, 1.107]**，完全不含 1。這份自由是有用的：它在隨機效果看到殘差之前，先吸收掉第 2 節那個校準 S 形的斜率成分。
+
+把它釘回 1 再擬合一次，變的只有用語。每位捕手的 runs 相關 r = 0.9997，單一捕手最大位移 0.40 runs 對上 28.9 的全距，前十名還是同樣那十位，P(τ 主審 > τ 捕手) 從 0.4635 變成 0.4615。那個假設是錯的，而估計式並不依賴它——這是這個發現比較有用的版本，也比「榜單真的動了」無聊。跑在 train pool 上而不是 2023，因為 2023 已經花掉了（[`models/sensitivity.py`](models/sensitivity.py)、[`results/sensitivity_slope.csv`](results/sensitivity_slope.csv)）。
 
 換引擎什麼都沒改變，本來也不會。在完全相同的資料上，兩種引擎對每位捕手效果的相關是 r = 0.9999，變分貝葉斯低估後驗標準差 5%。NUTS 提供的是後驗樣本，而下面那種機率非要它不可。
 
@@ -125,6 +127,8 @@ v1 的順序重現了。但把同樣的擬合跑在每一季上：
 
 順序在 2021 和 2022 之間翻面，而且從未超過 0.88。v1 沒有算錯任何東西，它的數字重現得很好。它是把一件在手上三季中有一季是擲銅板的事情，當成關於棒球的發現寫了出來。
 
+shadow zone 的門檻同樣會推動它。在合併的 train pool 上，事前承諾的三個帶狀區給出的 P(τ 主審 > τ 捕手) 分別是 0.50、0.46、0.63（[`results/sensitivity_threshold.csv`](results/sensitivity_threshold.csv)）。兩個任意的分析者選擇都能推動這個順序，而兩個都推不到能定案的程度——這比單靠跨季翻轉，更能支撐「不成立」這個判斷。
+
 ### 5. 捕手之間到底差多少
 
 <p align="center">
@@ -144,6 +148,8 @@ v1 的順序重現了。但把同樣的擬合跑在每一季上：
 分布的兩端和零清楚地分開了，中段沒有，而且多數相鄰配對分不出勝負。在 2021–2022 上，前兩名更接近，P(第 1 名勝第 2 名) = 0.77。
 
 工作計畫在圖存在之前就把這個結果列為可接受的結論，同時寫下三個 shadow zone 門檻全部報告的承諾；那份計畫在 [`archive/PLAN.md`](archive/PLAN.md)，日期在 commit 紀錄裡。
+
+三個門檻現在都報了（[`results/sensitivity_threshold.csv`](results/sensitivity_threshold.csv)，以及 METHODS §2.3）。榜單幾乎不動——每位捕手的 runs 對主門檻的相關是 0.991 與 0.987——而主文用的那個門檻，既不是區間最窄的，也不是讓最多捕手脫離零的。從最寬到最窄，分得出來的捕手比例分別是 24.8%、23.0%、16.2%。
 
 這張圖的圖說帶著本節其他部分帶不了的一句：模擬顯示兩端的涵蓋率約 88% 而非 95%。收縮把極端往內拉，而榜單就是給人看兩端的。
 
@@ -256,6 +262,7 @@ v1 的順序重現了。但把同樣的擬合跑在每一季上：
 | 區間 | Δ 後驗、成對比較機率 | [`models/intervals.py`](models/intervals.py) |
 | 模擬 | 八情境、兩估計式、四指標 | [`sim/`](sim/) |
 | 外部驗證 | 跨季、對照 Savant | [`models/validate.py`](models/validate.py) |
+| 係數敏感度 | b 自由估計 vs 釘死在 1，跑在 train pool | [`models/sensitivity.py`](models/sensitivity.py) |
 | Holdout | 2023，只用一次 | [`models/holdout.py`](models/holdout.py) |
 
 v1 的模組（`baseline_gam.py`、`framing_runs.py`、`hierarchical.py`、`reliability.py`、notebooks 01–06）沒有被改動，仍然可以執行。
@@ -274,6 +281,9 @@ v1 的模組（`baseline_gam.py`、`framing_runs.py`、`hierarchical.py`、`reli
 | [`external_checks.csv`](results/external_checks.csv) | 第 7 節的相關與 bootstrap 區間 |
 | [`sim_coverage.csv`](results/sim_coverage.csv) | 第 6 節的八情境 × 兩個估計式 |
 | [`sim_confound_sweep.csv`](results/sim_confound_sweep.csv) | 混淆強度掃描 |
+| [`sensitivity_slope.csv`](results/sensitivity_slope.csv) | 第 4 節的係數對照——自由擬合與 `b = 1` 並排 |
+| [`sensitivity_slope_diff.csv`](results/sensitivity_slope_diff.csv) | 把 `b` 釘死在 1 之後榜單動了多少 |
+| [`sensitivity_threshold.csv`](results/sensitivity_threshold.csv) | METHODS §2.3 承諾要報的三個 shadow zone 門檻 |
 | [`v1_fit_summary.csv`](results/v1_fit_summary.csv) | v1 的固定效應，含估計出來的 `logit_base` 係數 |
 
 ## 重現
@@ -295,6 +305,9 @@ uv run python -m models.intervals
 # 模擬：八情境 × 100 次重複（約 2 小時），然後是混淆強度掃描
 uv run python -m sim.run 100
 uv run python -m sim.run sweep 50
+
+# 係數敏感度：b 自由 vs b=1，在 train pool 上擬合兩次（約 15 分鐘）
+uv run python -m models.sensitivity
 
 # 外部驗證，然後是 holdout
 uv run python -m models.validate
@@ -328,6 +341,7 @@ models/
   intervals.py         後驗區間與成對比較機率
   identify.py          識別性診斷
   validate.py          跨季與 Savant 對照
+  sensitivity.py       b 自由估計 vs 釘死在 1
   holdout.py           2023，只用一次
 sim/                   模擬研究：生成、估計、執行
 notebooks/             01_eda … 06_multiseason（v1）

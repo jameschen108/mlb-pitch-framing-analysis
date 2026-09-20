@@ -72,7 +72,17 @@ Across the 75 catchers with at least 1,000 called pitches, the standard error of
 
 **Circularity**: the shadow zone is defined by the baseline model, so the baseline must be fit on *all* taken pitches first, and the subset taken afterwards.
 
-**Sensitivity**: results are reported at 0.15/0.85 and 0.25/0.75 as well as 0.2/0.8. This was committed to in advance, together with the commitment not to select the threshold that produces the narrowest intervals.
+**Sensitivity.** All three thresholds were committed to in advance, along with a commitment not to select whichever produced the narrowest intervals. Refitting the train pool at each ([`models/sensitivity.py`](models/sensitivity.py), [`results/sensitivity_threshold.csv`](results/sensitivity_threshold.csv)):
+
+| Threshold | Pitches | Catchers | τ catcher | τ umpire | P(τ_u > τ_c) | Intervals excluding zero | Mean interval width | r vs 0.2/0.8 |
+|---|--:|--:|--:|--:|--:|--:|--:|--:|
+| 0.15 / 0.85 | 130,159 | 149 | 0.1859 | 0.1860 | 0.50 | 37 (24.8%) | 5.61 runs | 0.991 |
+| **0.20 / 0.80** | 103,615 | 148 | 0.1883 | 0.1857 | 0.46 | 34 (23.0%) | 5.08 runs | — |
+| 0.25 / 0.75 | 81,971 | 148 | 0.1802 | 0.1880 | 0.63 | 24 (16.2%) | 4.41 runs | 0.987 |
+
+**The leaderboard is stable; the variance-component ordering is not.** Per-catcher framing runs correlate at 0.991 and 0.987 against the reported band, so nothing on the leaderboard turns on where the band is drawn. But P(τ_umpire > τ_catcher) reads 0.50, 0.46 and 0.63 across the three — a second reason, independent of the season-to-season flipping, not to state that ordering as a fact about baseball. Two arbitrary analyst choices move it, and neither moves it far enough to settle it.
+
+**The commitment is checkable, and it held.** The narrowest intervals are at 0.25/0.75 (4.41 runs), not at the reported 0.20/0.80 (5.08). Nor is the reported band the one that separates the most catchers from zero: 0.15/0.85 does, at 24.8% against 23.0%. Interval width in runs scales with the number of pitches in the band, so a narrower band buys narrower intervals and smaller run totals at once; the measure that matters is the share of catchers resolved, and on that the reported band sits in the middle of the three.
 
 ### 2.4 Holdout discipline
 
@@ -147,7 +157,11 @@ u_g = τ_g · z_g,    z_g ~ N(0, 1),    τ_g ~ HalfNormal(0.5)
 a ~ N(0, 2),        b ~ N(1, 1)
 ```
 
-**Two-stage, but not an offset model.** The baseline logit enters the second stage as a covariate whose coefficient `b` is estimated under a N(1, 1) prior — not held at 1, which is what the word *offset* means. The distinction is not cosmetic. Under a true offset the second stage scores the first stage's predictions exactly as they come; here `b` is free to rescale them, absorbing the slope component of the §4.1 miscalibration before the random effects ever see the residual. v1's stored fit puts `b` at 1.031 on 2023 and 1.026 on the pooled three seasons ([`results/v1_fit_summary.csv`](results/v1_fit_summary.csv)) — close enough to 1 that the wrong word survived several drafts, and far enough from it that it was the wrong word. **A sensitivity comparison against a fixed `b = 1` is not yet reported.**
+**Two-stage, but not an offset model.** The baseline logit enters the second stage as a covariate whose coefficient `b` is estimated under a N(1, 1) prior — not held at 1, which is what the word *offset* means. The distinction is not cosmetic. Under a true offset the second stage scores the first stage's predictions exactly as they come; here `b` is free to rescale them, absorbing the slope component of the §4.1 miscalibration before the random effects ever see the residual. Fit freely on the train pool, `b` has posterior mean **1.089**, 95% interval **[1.071, 1.107]**, with P(b > 1) = 1.000. The interval excludes 1 outright, so this is not a case where an offset would have been an adequate approximation loosely described — the data reject it. (v1's VB fit records 1.031 on full-season 2023 and 1.026 on the pooled three seasons, [`results/v1_fit_summary.csv`](results/v1_fit_summary.csv); a different sample and a different engine, not a contradiction.)
+
+**Fixing `b = 1` changes the wording and nothing else.** Refitting the same pitches with the coefficient pinned at 1 — the offset model this document once described — leaves per-catcher framing runs correlated with the free fit at r = 0.9997 (Spearman 0.9991). The largest single-catcher shift is **0.40 runs against a leaderboard spread of 28.9**, the mean shift is 0.06, the top ten are the same ten, and the largest rank change among 148 catchers is 12 places. All three variance components move by under 0.005, and P(τ_umpire > τ_catcher) goes from 0.4635 to 0.4615. So the assumption is false, and the estimator does not depend on it. Both fits are in [`models/sensitivity.py`](models/sensitivity.py), summarised in [`results/sensitivity_slope.csv`](results/sensitivity_slope.csv).
+
+**The sensitivity is run on the 2021–2022 train pool, not on 2023.** 2023 is a locked evaluation set already spent once (§2.4); refitting it for a robustness check would spend it a second time.
 
 Pitchers with fewer than 100 pitches in a season are pooled into a single group; their individual effects would shrink to near zero regardless and the level count is otherwise unmanageable.
 

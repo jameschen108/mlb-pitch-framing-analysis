@@ -1,0 +1,4 @@
+lo,hi,is_reference,n_rows,n_catchers,tau_catcher,tau_umpire,tau_pitcher,p_umpire_gt_catcher,intervals_excluding_zero,share_excluding_zero,share_pairs_resolved,mean_ci_width_runs,leaderboard_spread_runs,n_common_with_reference,runs_pearson_vs_reference,divergences
+0.150000,0.850000,false,130159,149,0.185905,0.185996,0.187633,0.502000,37,0.248322,0.269545,5.613309,36.024113,148,0.990993,0
+0.200000,0.800000,true,103615,148,0.188293,0.185712,0.181961,0.463500,34,0.229730,0.256941,5.081590,28.866983,148,1.000000,0
+0.250000,0.750000,false,81971,148,0.180220,0.188007,0.180292,0.632000,24,0.162162,0.216952,4.410964,23.285562,148,0.986478,0

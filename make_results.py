@@ -183,6 +183,36 @@ def _sim_table(path: Path, by: list[str]) -> pl.DataFrame:
             .sort(by))
 
 
+# ---- 敏感度：b 自由 vs b=1 ----
+
+def _sensitivity() -> tuple[pl.DataFrame | None, pl.DataFrame | None]:
+    """offset 對照的兩張表：逐 arm 的摘要，以及兩個 arm 之間榜單動了多少。"""
+    path = _need(ARTIFACT_DIR / "sensitivity_slope.pkl",
+                 "uv run python -m models.sensitivity")
+    if path is None:
+        return None, None
+
+    from models.sensitivity import comparison, summary
+
+    with open(path, "rb") as fh:
+        res = pickle.load(fh)
+    return summary(res), pl.DataFrame([comparison(res)])
+
+
+def _threshold_sensitivity() -> pl.DataFrame | None:
+    """三個 shadow zone 門檻的對照——METHODS §2.3 事前承諾要報的那張表。"""
+    path = _need(ARTIFACT_DIR / "sensitivity_threshold.pkl",
+                 "uv run python -m models.sensitivity")
+    if path is None:
+        return None
+
+    from models.sensitivity import threshold_summary
+
+    with open(path, "rb") as fh:
+        res = pickle.load(fh)
+    return threshold_summary(res)
+
+
 # ---- v1 的擬合摘要 ----
 
 def _v1_fits() -> pl.DataFrame | None:
@@ -244,6 +274,11 @@ def main() -> None:
         write("separability", _separability(fits))
 
     write("external_checks", _external_checks())
+
+    sens, sens_diff = _sensitivity()
+    write("sensitivity_slope", sens)
+    write("sensitivity_slope_diff", sens_diff)
+    write("sensitivity_threshold", _threshold_sensitivity())
     write("v1_fit_summary", _v1_fits())
 
     # v1 的三季合併榜單（VB，無區間）——README §8 的 +40 runs 出自這裡

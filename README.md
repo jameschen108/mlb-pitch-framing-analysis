@@ -18,7 +18,7 @@ The original analysis is unchanged and still reachable at tag [`v1.0`](../../tre
 
 | Claim in v1 | Verdict |
 |---|---|
-| Umpire-to-umpire variation exceeds catcher-to-catcher variation (τ 0.233 vs 0.192) | **Not supported.** Reproduces on 2023 at P = 0.81, but flips between seasons and never reaches a level worth stating as fact |
+| Umpire-to-umpire variation exceeds catcher-to-catcher variation (τ 0.233 vs 0.192) | **Not supported.** Reproduces on 2023 at P = 0.81, but flips between seasons, moves with the shadow-zone threshold, and never reaches a level worth stating as fact |
 | The leaderboard separates catchers | **Partly.** 23 of 63 qualified catchers have intervals excluding zero; most adjacent ranks are coin flips |
 | r = 0.990 against Savant shows the location model is sound | **Yes, but it shows less than it appears to** — the correlation is almost entirely insensitive to estimator quality |
 | The variational fit that produced all of this had not converged | **Harmless.** NUTS reproduces it to four decimal places |
@@ -100,7 +100,9 @@ So the correlation cannot be evidence that the estimator is sound: it barely mov
 
 The model is v1's: the baseline logit enters as a calibration covariate, three crossed random intercepts compete for the residual. The engine is NUTS (numpyro) rather than variational Bayes, run on the shadow-zone subset with a non-centred parameterisation.
 
-That covariate's coefficient is estimated under a N(1, 1) prior, not fixed — so it is not an *offset*, which is a term whose coefficient is held at 1 by construction. v1's stored fit puts it at 1.031 ([`results/v1_fit_summary.csv`](results/v1_fit_summary.csv)). The freedom earns its keep, absorbing the slope part of the calibration S-shape in section 2 before the random effects see the residual, but it also means the second stage is not scoring the first stage's predictions untouched. A comparison against a fixed coefficient of 1 is not yet reported.
+That covariate's coefficient is estimated, not fixed — so it is not an *offset*, which is a term whose coefficient is held at 1 by construction. Fit freely it lands at **1.089, 95% interval [1.071, 1.107]**, which excludes 1 outright. The freedom earns its keep, absorbing the slope part of the calibration S-shape in section 2 before the random effects see the residual.
+
+Pinning it back to 1 and refitting changes the wording and nothing else. Per-catcher runs correlate at r = 0.9997, the largest single-catcher shift is 0.40 runs against a spread of 28.9, the top ten are the same ten, and P(τ_umpire > τ_catcher) moves from 0.4635 to 0.4615. The assumption was false and the estimator did not depend on it — which is the useful version of this finding, and a duller one than if the leaderboard had moved. Run on the train pool rather than on 2023, which has been spent ([`models/sensitivity.py`](models/sensitivity.py), [`results/sensitivity_slope.csv`](results/sensitivity_slope.csv)).
 
 The engine swap changes nothing and was never going to. On identical data the two engines agree on per-catcher effects at r = 0.9999, and variational Bayes understates the posterior standard deviation by 5%. What NUTS provides is posterior *samples*, which is what a probability like the one below requires.
 
@@ -125,6 +127,8 @@ v1's ordering reproduces. But run the same fit on each season:
 
 The ordering flips between 2021 and 2022 and never exceeds 0.88. v1 did not miscalculate anything — its numbers reproduce closely. It stated as a finding about baseball something that is a coin flip in one of the three seasons it had in hand.
 
+The shadow-zone threshold moves it as well. On the pooled train pool, P(τ_umpire > τ_catcher) reads 0.50, 0.46 and 0.63 at the three bands committed to in advance ([`results/sensitivity_threshold.csv`](results/sensitivity_threshold.csv)). Two arbitrary analyst choices push the ordering around, and neither pushes it far enough to settle it — which is a firmer basis for "not supported" than the season flip alone.
+
 ### 5. How far apart are catchers, really
 
 <p align="center">
@@ -144,6 +148,8 @@ Among the 63 catchers Savant lists as qualified, 23 have intervals excluding zer
 The ends of the distribution separate cleanly from zero. The middle does not, and most adjacent pairs are indistinguishable. On 2021–2022, where the top two are closer together, P(rank 1 beats rank 2) = 0.77.
 
 The working plan set this down as an acceptable outcome before the figure existed, together with a commitment to report all three shadow-zone thresholds; it is in [`archive/PLAN.md`](archive/PLAN.md), dated in the commit history.
+
+All three are now reported ([`results/sensitivity_threshold.csv`](results/sensitivity_threshold.csv), and METHODS §2.3). The leaderboard barely moves — per-catcher runs correlate at 0.991 and 0.987 against the reported band — and the reported band is neither the one with the narrowest intervals nor the one that separates the most catchers from zero. The share of catchers resolved runs 24.8%, 23.0% and 16.2% from the widest band to the narrowest.
 
 The plot carries a caption that the rest of this section cannot: simulation puts coverage at the extremes near 88%, not 95%. Shrinkage pulls the ends in, and the ends are exactly what a leaderboard is read for.
 
@@ -256,6 +262,7 @@ What I would add next: the ABS challenge era. 2026 was excluded here because the
 | Intervals | Δ posterior, pairwise comparison probabilities | [`models/intervals.py`](models/intervals.py) |
 | Simulation | Eight scenarios, two estimators, four metrics | [`sim/`](sim/) |
 | External validation | Year over year, Savant comparison | [`models/validate.py`](models/validate.py) |
+| Slope sensitivity | Estimated `b` vs `b` fixed at 1, on the train pool | [`models/sensitivity.py`](models/sensitivity.py) |
 | Holdout | 2023, spent once | [`models/holdout.py`](models/holdout.py) |
 
 v1's modules (`baseline_gam.py`, `framing_runs.py`, `hierarchical.py`, `reliability.py`, notebooks 01–06) are unchanged and still run.
@@ -274,6 +281,9 @@ Every number in this document traces to a CSV in [`results/`](results/), written
 | [`external_checks.csv`](results/external_checks.csv) | section 7's correlations and bootstrap intervals |
 | [`sim_coverage.csv`](results/sim_coverage.csv) | section 6's eight scenarios × two estimators |
 | [`sim_confound_sweep.csv`](results/sim_confound_sweep.csv) | the confounder-strength sweep |
+| [`sensitivity_slope.csv`](results/sensitivity_slope.csv) | section 4's coefficient check — the free fit and the `b = 1` fit side by side |
+| [`sensitivity_slope_diff.csv`](results/sensitivity_slope_diff.csv) | what pinning `b` to 1 does to the leaderboard |
+| [`sensitivity_threshold.csv`](results/sensitivity_threshold.csv) | the three shadow-zone thresholds promised in METHODS §2.3 |
 | [`v1_fit_summary.csv`](results/v1_fit_summary.csv) | v1's fixed effects, including the estimated `logit_base` coefficient |
 
 ## Reproduce
@@ -295,6 +305,9 @@ uv run python -m models.intervals
 # simulation: eight scenarios x 100 reps (~2 hours), then the confounder sweep
 uv run python -m sim.run 100
 uv run python -m sim.run sweep 50
+
+# slope sensitivity: b free vs b = 1, two fits on the train pool (~15 min)
+uv run python -m models.sensitivity
 
 # external validation, then the holdout
 uv run python -m models.validate
@@ -328,6 +341,7 @@ models/
   intervals.py         posterior intervals and pairwise probabilities
   identify.py          identifiability diagnostics
   validate.py          year-over-year and Savant comparison
+  sensitivity.py       estimated slope vs slope fixed at 1
   holdout.py           2023, spent once
 sim/                   simulation study: generate, estimate, run
 notebooks/             01_eda … 06_multiseason (v1)
