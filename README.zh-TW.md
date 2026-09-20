@@ -149,7 +149,7 @@ shadow zone 的門檻同樣會推動它。在合併的 train pool 上，事前�
 
 分布的兩端和零清楚地分開了，中段沒有，而且多數相鄰配對分不出勝負。在 2021–2022 上，前兩名更接近，P(第 1 名勝第 2 名) = 0.77。
 
-工作計畫在圖存在之前就把這個結果列為可接受的結論，同時寫下三個 shadow zone 門檻全部報告的承諾；那份計畫在 [`archive/PLAN.md`](archive/PLAN.md)，日期在 commit 紀錄裡。
+工作計畫在圖存在之前就把這個結果列為可接受的結論，同時寫下三個 shadow zone 門檻全部報告的承諾。那份計畫沒有公開；可以查的是 commit 紀錄——門檻的選定早於套用它的那些擬合。
 
 三個門檻現在都報了（[`results/sensitivity_threshold.csv`](results/sensitivity_threshold.csv)，以及 METHODS §2.3）。榜單幾乎不動——每位捕手的 runs 對主門檻的相關是 0.991 與 0.987——而主文用的那個門檻，既不是區間最窄的，也不是讓最多捕手脫離零的。從最寬到最窄，分得出來的捕手比例分別是 24.8%、23.0%、16.2%。
 
@@ -347,13 +347,12 @@ models/
   holdout.py           2023，只用一次
 sim/                   模擬研究：生成、估計、執行
 notebooks/             01_eda … 06_multiseason（v1）
-tests/                 管線不變量檢查（pytest）
+tests/                 不變量：資料清理、v1 效應對應、v2 估計式（17 個測試，約 10 秒）
 make_figures.py        v1 的圖，雙語
 make_figures_v2.py     v2 的圖，雙語
 make_results.py        每一張發表的表，從快取輸出成 CSV
 results/               那些 CSV（進版控；快取本身不進）
 docs/images/           en/ 與 zh/，兩份 README 使用的圖
-archive/               兩輪的研究計畫，已被取代
 .github/workflows/     CI：只跑合成資料的 pytest，不下載任何東西
 ```
 

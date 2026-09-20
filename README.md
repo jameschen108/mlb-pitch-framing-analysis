@@ -149,7 +149,7 @@ Among the 63 catchers Savant lists as qualified, 23 have intervals excluding zer
 
 The ends of the distribution separate cleanly from zero. The middle does not, and most adjacent pairs are indistinguishable. On 2021–2022, where the top two are closer together, P(rank 1 beats rank 2) = 0.77.
 
-The working plan set this down as an acceptable outcome before the figure existed, together with a commitment to report all three shadow-zone thresholds; it is in [`archive/PLAN.md`](archive/PLAN.md), dated in the commit history.
+The working plan set this down as an acceptable outcome before the figure existed, together with a commitment to report all three shadow-zone thresholds. That plan is not published here; what is checkable is the commit history, where the threshold choice predates the fits it applies to.
 
 All three are now reported ([`results/sensitivity_threshold.csv`](results/sensitivity_threshold.csv), and METHODS §2.3). The leaderboard barely moves — per-catcher runs correlate at 0.991 and 0.987 against the reported band — and the reported band is neither the one with the narrowest intervals nor the one that separates the most catchers from zero. The share of catchers resolved runs 24.8%, 23.0% and 16.2% from the widest band to the narrowest.
 
@@ -347,13 +347,12 @@ models/
   holdout.py           2023, spent once
 sim/                   simulation study: generate, estimate, run
 notebooks/             01_eda … 06_multiseason (v1)
-tests/                 pipeline invariant checks (pytest)
+tests/                 invariants: cleaning, v1 effect mapping, v2 estimator (17 tests, ~10s)
 make_figures.py        v1 figures, both languages
 make_figures_v2.py     v2 figures, both languages
 make_results.py        every published table, as CSV, from cached fits
 results/               those CSVs (version-controlled; the caches are not)
 docs/images/           en/ and zh/ figures used by the two READMEs
-archive/               the research plans for both rounds, superseded
 .github/workflows/     CI: pytest on synthetic data, no downloads
 ```
 
