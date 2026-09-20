@@ -43,7 +43,9 @@ def assign_split(
     rng = np.random.default_rng(seed)
     val_games = rng.choice(games, size=int(round(len(games) * val_fraction)), replace=False)
     return df.with_columns(
-        split=pl.when(pl.col("game_pk").is_in(pl.Series(val_games)))
+        # .implode()：polars 對「同型別集合」的 is_in 已標記棄用，行為未來可能改變。
+        # 驗證過兩種寫法在鎖定的版本下產生完全相同的切分，所以快取不會失效。
+        split=pl.when(pl.col("game_pk").is_in(pl.Series(val_games).implode()))
         .then(pl.lit("val"))
         .otherwise(pl.lit("train"))
     )
