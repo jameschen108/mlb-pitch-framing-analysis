@@ -22,7 +22,7 @@ The original analysis is unchanged and still reachable at tag [`v1.0`](../../tre
 |---|---|
 | Umpire-to-umpire variation exceeds catcher-to-catcher variation (τ 0.233 vs 0.192) | **Not supported.** Reproduces on 2023 at P = 0.81, but flips between seasons, moves with the shadow-zone threshold, and never reaches a level worth stating as fact |
 | The leaderboard separates catchers | **Partly.** 23 of 63 qualified catchers have intervals excluding zero; most adjacent ranks are coin flips |
-| r = 0.990 against Savant shows the location model is sound | **Yes, but it shows less than it appears to** — the correlation is almost entirely insensitive to estimator quality |
+| r = 0.990 against Savant shows the location model is sound | **Yes, but it shows less than it appears to** — the correlation cannot see interval calibration, where the two estimators differ most, and barely moves between their point estimates |
 | The variational fit that produced all of this had not converged | **Harmless.** Refit with NUTS on the same 2022 data, per-catcher effects correlate with the VB fit at r = 0.9999 |
 
 The last row was the reason I started this round. It turned out to be the one thing that was fine.
@@ -90,9 +90,11 @@ v1's headline validation was the correlation between its unadjusted leaderboard 
 
 Reading down the column: dropping the in-sample baseline costs 0.032, restricting to the shadow zone costs a further 0.022, and switching from the unadjusted estimator to the hierarchical one gains 0.006.
 
-The third of those is the one that matters. Section 6 shows the unadjusted estimator's nominal 95% intervals covering as little as 74% of the time under realistic confounding, while the hierarchical model stays calibrated. Replacing the first with the second moves the correlation against Savant by six thousandths.
+The first step changes two things at once. The 2023 baseline goes from in-sample to out-of-sample, and also from a model of 2023 to a model of 2021–2022, so part of the 0.032 may be the zone shifting between seasons rather than in-sample fitting. Separating the two would take cross-fitting within 2023, which would spend the season a second time.
 
-So the correlation cannot be evidence that the estimator is sound: it barely moves when the estimator is replaced with one that is. v1's README already said this was not independent confirmation. The agreement reflects shared method, and part of it reflected nothing more than both sides fitting in-sample on the season they were scoring.
+The third of those is the one that matters. Section 6 shows how the two estimators differ. They differ most in their intervals: under confounding the unadjusted estimator's nominal 95% intervals cover as little as 74% of the time, while the hierarchical model's stay between 92.9% and 95.6%. A correlation between point estimates cannot see intervals at all. They differ less in their point estimates: under confounding the hierarchical model's RMSE is about 40% lower, and its rank correlation with the true effects 0.04 to 0.05 higher. Against Savant, replacing one estimator with the other moves the correlation by six thousandths.
+
+So the correlation cannot be evidence that the estimator is sound: it is blind to the larger difference between the two and barely registers the smaller one. v1's README already said this was not independent confirmation. The agreement reflects shared method, and part of it probably reflected both sides fitting in-sample on the season they were scoring.
 
 <p align="center">
   <img src="docs/images/en/framing_vs_official_2023.png" width="440">
@@ -106,7 +108,7 @@ That covariate's coefficient is estimated, not fixed — so it is not an *offset
 
 Pinning it back to 1 and refitting changes the wording and nothing else. Per-catcher runs correlate at r = 0.9997, the largest single-catcher shift is 0.40 runs against a spread of 28.9, the top ten are the same ten, and P(τ_umpire > τ_catcher) moves from 0.4635 to 0.4615. The assumption was false and the estimator did not depend on it — which is the useful version of this finding, and a duller one than if the leaderboard had moved. Run on the train pool rather than on 2023, which has been spent ([`models/sensitivity.py`](models/sensitivity.py), [`results/sensitivity_slope.csv`](results/sensitivity_slope.csv)).
 
-The engine swap changes nothing and was never going to. On identical data (2022, shadow zone) the two engines agree on per-catcher effects at r = 0.9999, and variational Bayes understates the posterior standard deviation by 5%. What NUTS provides is posterior *samples*, which is what a probability like the one below requires.
+The engine swap changes nothing and was never going to. On identical data (2022, shadow zone) the two engines agree on per-catcher effects at r = 0.9999, and variational Bayes understates the posterior standard deviation by 5%. What NUTS adds is the joint posterior. The VB fit is mean-field: it gives each parameter its own mean and spread and treats them as independent, which drops the correlations that a probability like the one below depends on.
 
 2023, the season v1 reported:
 
@@ -149,7 +151,7 @@ Among the 63 catchers Savant lists as qualified, 23 have intervals excluding zer
 
 The ends of the distribution separate cleanly from zero. The middle does not, and most adjacent pairs are indistinguishable. On 2021–2022, where the top two are closer together, P(rank 1 beats rank 2) = 0.77.
 
-The working plan set this down as an acceptable outcome before the figure existed, together with a commitment to report all three shadow-zone thresholds. That plan is not published here; what is checkable is the commit history, where the threshold choice predates the fits it applies to.
+The working plan set this down as an acceptable outcome before the figure existed, together with a commitment to report all three shadow-zone thresholds. That plan was private, so when it was written cannot be verified from outside. What can be checked is whether the reported band turned out to be the convenient one.
 
 All three are now reported ([`results/sensitivity_threshold.csv`](results/sensitivity_threshold.csv), and METHODS §2.3). The leaderboard barely moves — per-catcher runs correlate at 0.991 and 0.987 against the reported band — and the reported band is neither the one with the narrowest intervals nor the one that separates the most catchers from zero. The share of catchers resolved runs 24.8%, 23.0% and 16.2% from the widest band to the narrowest.
 
@@ -165,17 +167,19 @@ Eight scenarios, with known catcher, umpire and pitcher effects generated on the
   <img src="docs/images/en/sim_coverage_by_scenario.png" width="700">
 </p>
 
-The unadjusted estimator fails exactly where the confounding is. Its nominal 95% intervals cover 83% under umpire confounding, 78% under concentrated battery pairings, and 74% with an omitted covariate correlated with the catcher. Where there is no confounding it behaves. The hierarchical model stays between 92.9% and 95.6% throughout.
+The unadjusted estimator fails exactly where the confounding is. Its nominal 95% intervals cover 83% under umpire confounding, 78% under concentrated battery pairings, and 74% with an omitted covariate correlated with the catcher. Where there is no confounding it does better but still falls short, at 91–92%: its binomial intervals count only pitch-to-pitch noise, not the umpire and pitcher variation that also lands in its estimate. The hierarchical model stays between 92.9% and 95.6% throughout.
 
-Three of these eight scenarios were built specifically to break the hierarchical model's assumptions — a location-varying catcher effect, heavy-tailed effects violating the normal prior, an omitted covariate — and none of them did. That is a weaker result than this project set out to find. It is also easier to defend.
+Three of these eight scenarios were built specifically to break the hierarchical model's assumptions — a location-varying catcher effect, heavy-tailed effects violating the normal prior, an omitted covariate at half the size of the catcher effect — and none of them did. That is a weaker result than this project set out to find. It is also easier to defend.
 
-What the intervals do not survive is unmeasured confounding correlated with the catcher. Rather than pick one confounder size, the strength was swept:
+What the intervals do not survive is a stronger version of that omitted covariate. Rather than pick one size, the strength was swept on the same scenario:
 
 <p align="center">
   <img src="docs/images/en/sim_confound_sweep.png" width="620">
 </p>
 
-Coverage holds while the confounding stays below about half the size of the effect being measured, falls to 88% when it matches it, and reaches 66% at twice. v1's Limitations noted in one sentence that catchers are not randomly assigned to pitchers. This is that sentence with a number attached.
+Coverage holds while the confounding stays below about half the size of the effect being measured, falls to 88% when it matches it, and reaches 66% at twice. The scenario also concentrates battery pairings, which is why the unadjusted estimator starts at 78% even with no confounder.
+
+v1's Limitations noted in one sentence that catchers are not randomly assigned to pitchers. The battery scenario tests that sentence directly, and the hierarchical model passes it at 94.0%. The sweep measures a different threat: a variable that tracks the catcher and that the model never sees.
 
 An unplanned finding, visible as the gap between the filled and hollow markers in the scenario figure earlier in this section: coverage for the largest third of effects runs 4 to 7 points below coverage overall, in every scenario including the baseline. The unadjusted estimator shows no such gap because it shrinks nothing; its intervals are simply too narrow everywhere.
 
@@ -191,13 +195,13 @@ The two estimators, run on identical pitches, put side by side against the two e
 
 Every interval covers zero. Paired bootstrap over catchers, 8,000 resamples, signed the same way in all three rows so that each interval contains its own row's gap ([`models/validate.py`](models/validate.py), reproduced in [`results/external_checks.csv`](results/external_checks.csv)).
 
-Simulation separates these two estimators decisively — 74% coverage against 93%. The external checks cannot separate them at all. With 46 to 60 catchers, only a correlation gap larger than about 0.1 would be visible, and the gap is not that large.
+Simulation separates the two estimators clearly on intervals, 74% coverage against 93%, and more modestly on point estimates. The external checks see only point estimates, and on those they do not separate the estimators either way. Two of them are too imprecise to: the year-over-year interval is about ±0.05 wide and the 2021 Savant interval ±0.04. The 2022 Savant interval, at ±0.02, is tight enough to catch a real gap, and its point estimate slightly favours the unadjusted estimator.
 
-So the external checks cannot do the job the simulation does. That is also the precise sense in which r = 0.990 was never validation: a check with no power to separate a good estimator from a bad one says nothing about which one you have.
+So the external checks cannot do the job the simulation does. They look only where the two estimators differ least, and mostly without the precision to see even that. That is also the sense in which r = 0.990 was never validation: a check that cannot separate a good estimator from a bad one says nothing about which one you have.
 
 ### 8. Reliability and persistence
 
-Carried over from v1 unchanged, and still standing. Splitting each catcher's pitches at random into halves gives r = 0.82 (mean of 50 splits), or R = 0.90 corrected back to full-season length by Spearman–Brown; 2022 predicts 2023 at r = 0.599. Both figures come from the unadjusted residual rate rather than the hierarchical estimates, so that half-seasons and full seasons stay comparable without refitting the mixed model each time.
+Carried over from v1 and not re-examined in this round. Splitting each catcher's pitches at random into halves gives r = 0.82 (mean of 50 splits), or R = 0.90 corrected back to full-season length by Spearman–Brown; 2022 predicts 2023 at r = 0.599. Both figures come from the unadjusted residual rate rather than the hierarchical estimates, so that half-seasons and full seasons stay comparable without refitting the mixed model each time. They also rest on v1's in-sample baseline, which section 3 shows can move a correlation, and have not been recomputed out of sample.
 
 Pooling 2021–2023 gives steadier per-catcher numbers — Jose Trevino leads at +40 runs over the three years — and fills in the persistence picture. Consecutive seasons correlate at 0.603 on average; a two-year gap drops to 0.320, close to what a simple AR(1) process predicts (0.603² = 0.364). Framing looks less like a fixed trait and more like one that drifts a little each year.
 
@@ -368,7 +372,7 @@ docs/images/           en/ and zh/ figures used by the two READMEs
 - The count enters the baseline additively, shifting the zone without reshaping it. The reshaping effect is real, and shown by fitting each count separately, but it is not in the model that generates the framing numbers.
 - Pitches beyond |plate_x| > 2.5 ft, or outside a standardized height of [−1, 2], are dropped before modelling to keep the spline from extrapolating: about 2% of pitches, of which exactly 1 of 7,386 in 2023 was a called strike. They carry essentially no framing signal.
 - Pitchers with fewer than 100 shadow-zone pitches in the data being fitted share a single pooled effect: 749 of 1,123 pitchers (25% of pitches) in the 2021–2022 fit, 669 of 835 (48%) in 2023. Their individual effects would be heavily shrunk anyway, but for those pitches the model makes no pitcher-specific adjustment. (v1 pooled below 100 called pitches per season, 150 in its three-season fit.)
-- Run value is a flat 0.125 runs per stolen strike, as in v1. The real value depends on the count — stealing strike three is worth far more than stealing ball one — so per-catcher totals are approximate. Making it count-dependent rescales the leaderboard and changes no statistical conclusion.
+- Run value is a flat 0.125 runs per stolen strike, as in v1. The real value depends on the count — a strike stolen with two strikes already on the batter is worth far more than one stolen on 0-0 — so per-catcher totals are approximate. A count-dependent value would leave the variance components, the separability figures and P(τ_umpire > τ_catcher) unchanged, since they are on the probability scale, but it could reorder the run leaderboard, because catchers see different mixes of counts. That has not been checked.
 - The holdout discipline cost something: with 2023 reserved, year-over-year stability rests on a single season pair, so there is no decay curve.
 - The baseline model is mildly miscalibrated in the shadow zone (section 2). Correcting it moves the leaderboard by about 1% of its spread.
 

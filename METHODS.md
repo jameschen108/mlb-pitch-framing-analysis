@@ -42,7 +42,7 @@ What the whole measure rests on is the residual `actual − predicted`. A baseli
 
 The two schemes differ in form; both are out of sample.
 
-The cost of not doing this is measurable. On 2023, the same unadjusted estimator correlates with Savant at 0.990 using an in-sample baseline and 0.958 using an out-of-sample one. The in-sample version shares structure with Savant — which presumably also fits within season — and the correlation is inflated accordingly.
+The cost of not doing this is measurable. On 2023, the same unadjusted estimator correlates with Savant at 0.990 using an in-sample baseline and 0.958 using an out-of-sample one. The in-sample version shares structure with Savant — which presumably also fits within season — and the correlation is inflated accordingly. Not all of the drop need come from that: the out-of-sample 2023 baseline is also a model of different seasons, and the zone shifts from year to year. Separating the two would take cross-fitting within 2023, which would spend it a second time.
 
 ### 2.2 Splitting by game, not by pitch
 
@@ -72,7 +72,7 @@ Across the 75 catchers with at least 1,000 called pitches, the standard error of
 
 **Circularity**: the shadow zone is defined by the baseline model, so the baseline must be fit on *all* taken pitches first, and the subset taken afterwards.
 
-**Sensitivity.** All three thresholds were committed to in advance, along with a commitment not to select whichever produced the narrowest intervals. Refitting the train pool at each ([`models/sensitivity.py`](models/sensitivity.py), [`results/sensitivity_threshold.csv`](results/sensitivity_threshold.csv)):
+**Sensitivity.** All three thresholds were committed to in advance in a private working plan, along with a commitment not to select whichever produced the narrowest intervals. The timing of that plan cannot be verified from outside; the outcome can. Refitting the train pool at each ([`models/sensitivity.py`](models/sensitivity.py), [`results/sensitivity_threshold.csv`](results/sensitivity_threshold.csv)):
 
 | Threshold | Pitches | Catchers | τ catcher | τ umpire | P(τ_u > τ_c) | Intervals excluding zero | Mean interval width | r vs 0.2/0.8 |
 |---|--:|--:|--:|--:|--:|--:|--:|--:|
@@ -82,7 +82,7 @@ Across the 75 catchers with at least 1,000 called pitches, the standard error of
 
 **The leaderboard is stable; the variance-component ordering is not.** Per-catcher framing runs correlate at 0.991 and 0.987 against the reported band, so nothing on the leaderboard turns on where the band is drawn. But P(τ_umpire > τ_catcher) reads 0.50, 0.46 and 0.63 across the three — a second reason, independent of the season-to-season flipping, not to state that ordering as a fact about baseball. Two arbitrary analyst choices move it, and neither moves it far enough to settle it.
 
-**The commitment is checkable, and it held.** The narrowest intervals are at 0.25/0.75 (4.41 runs), not at the reported 0.20/0.80 (5.08). Nor is the reported band the one that separates the most catchers from zero: 0.15/0.85 does, at 24.8% against 23.0%. Interval width in runs scales with the number of pitches in the band, so a narrower band buys narrower intervals and smaller run totals at once; the measure that matters is the share of catchers resolved, and on that the reported band sits in the middle of the three.
+**The reported band is not the convenient one.** The narrowest intervals are at 0.25/0.75 (4.41 runs), not at the reported 0.20/0.80 (5.08). Nor is the reported band the one that separates the most catchers from zero: 0.15/0.85 does, at 24.8% against 23.0%. Interval width in runs scales with the number of pitches in the band, so a narrower band buys narrower intervals and smaller run totals at once; the measure that matters is the share of catchers resolved, and on that the reported band sits in the middle of the three.
 
 ### 2.4 Holdout discipline
 
@@ -114,7 +114,7 @@ The confounding runs in one direction, and it is not the direction one first loo
 - A catcher's pitches coming from his single most frequent pitcher: median **14.9%**, 90th percentile 22.4%. Catchers see many pitchers.
 - A pitcher's pitches caught by his single most frequent catcher: median **60.5%**, 90th percentile **84.8%**.
 
-A pitcher is mostly caught by one catcher. So whatever is specific to a pitcher and not in the model gets a clean channel into that catcher's estimate.
+A pitcher is mostly caught by one catcher, so the data have little room to tell that pitcher's effect from his catcher's. A pitcher's constant effect is in the model, and the simulation confirms the pitcher term absorbs it (§6.2). What the concentration leaves is a problem of separating two terms the model does have.
 
 This shows up directly in the posterior. Taking each qualified catcher and the pitcher he caught most, and correlating their effects across posterior draws (66 pairs, pooled group excluded):
 
@@ -127,7 +127,7 @@ This shows up directly in the posterior. Taking each qualified catcher and the p
 
 The negative sign is the signature of partial non-identification: within the posterior, credit for the same calls trades off between the catcher and his battery-mate. The model cannot tell whose it is; it splits the difference and widens both intervals.
 
-**So the catcher term is variation associated with the catcher under this specification, and the pitcher channel is the main reason it cannot be read as skill.** The simulation in section 6 puts a number on what that costs.
+**So credit between catcher and pitcher is only partly separable.** The model carries this into wider intervals rather than a biased estimate: in the battery scenario of section 6, where pairings are concentrated on purpose, the hierarchical intervals still cover 94%. What it cannot separate is anything about a pitcher that changes with the catcher he throws to. The pitcher term does not capture that, so it lands on the catcher, and it is one reason the catcher term is variation associated with the catcher under this specification rather than a measure of skill.
 
 ### 3.3 What shrinkage is and is not
 
@@ -167,7 +167,7 @@ Pitchers with fewer than 100 shadow-zone pitches in the data being fitted share 
 
 **Non-centred parameterisation is not optional.** When τ is small the centred form has a funnel-shaped posterior and NUTS produces divergences. Written non-centred from the start, all fits in this project returned zero or near-zero divergences (2 across 800,000 draws in the simulation study).
 
-**The engine swap changes nothing, and that is the finding.** On identical data (2022, shadow zone), variational Bayes and NUTS agree on per-catcher effects at r = 0.9999 (Spearman 0.9998), and VB's posterior standard deviation is 0.95× NUTS's. The theoretical warning that variational inference understates posterior variance is correct in direction and worth 5% here. What NUTS supplies is posterior *samples*, which pairwise comparison probabilities and coverage checks require and VB cannot provide.
+**The engine swap changes nothing, and that is the finding.** On identical data (2022, shadow zone), variational Bayes and NUTS agree on per-catcher effects at r = 0.9999 (Spearman 0.9998), and VB's posterior standard deviation is 0.95× NUTS's. The theoretical warning that variational inference understates posterior variance is correct in direction and worth 5% here. What NUTS supplies is the joint posterior. The statsmodels VB fit is mean-field, an independent normal approximation for each parameter, so it drops the posterior correlations that Δ, the pairwise probabilities and P(τ_umpire > τ_catcher) depend on, the catcher–pitcher correlation in §3.2 among them.
 
 ---
 
@@ -175,7 +175,7 @@ Pitchers with fewer than 100 shadow-zone pitches in the data being fitted share 
 
 **Δ posterior.** For each posterior draw, η is reconstructed for every pitch, Δ is computed as `σ(η) − σ(η − u_catcher)`, and averaged within catcher. The result is a posterior distribution over Δ per catcher; the interval is its 2.5/97.5 percentiles.
 
-**Runs.** `runs = Δ × shadow-zone pitches × 0.125` is computed **per draw**, then summarised. Multiplying a point estimate and attaching an interval afterwards would understate the uncertainty.
+**Runs.** `runs = Δ × shadow-zone pitches × 0.125`. The pitch count and run value are fixed for each catcher, so the interval on runs is the interval on Δ rescaled. It is computed per draw anyway, which would matter only for totals across catchers, whose draws are correlated.
 
 **Pairwise comparisons.** `P(Δ_A > Δ_B)` is counted directly from the joint posterior draws, which is the only way to answer "is A better than B" without pretending the two estimates are independent.
 
@@ -208,13 +208,13 @@ Eight, in two groups. The first four manipulate data structure; the last four at
 | location_shared | Catcher effect varies with location; locations independent of catcher |
 | location_mix | As above, but catchers face different location distributions |
 | heavy_tail | Catcher effects from t(3), violating the normal prior |
-| omitted_covariate | A variable affecting calls, correlated with catcher, absent from the model |
+| omitted_covariate | A variable affecting calls, correlated with catcher, absent from the model; half the size of the catcher effect (swept in §6.4) |
 
 **`location_shared` is a deliberately preserved failure.** It looks like misspecification and is not: when locations are drawn independently of catcher, every catcher faces the same distribution, the interaction term averages to the constant `γ_c · E[centred]`, and a constant-intercept model recovers it exactly. The catcher-level spread in mean location is 0.017 under this scenario against 0.078 under `location_mix`. It is kept in the table as the control it turned out to be.
 
 Two further scenario designs failed before `omitted_covariate` worked, and the reason is the same each time: **the fitted model absorbed what was meant to break it.** A covariate defined at pitcher level is taken up whole by the pitcher random effect. Per-pitch noise is uncorrelated with catcher and merely adds unexplained variance. Only a covariate with a catcher-level component — with the truth defined to exclude that component — bites.
 
-That last construction is close to tautological: removing from the truth something the data cannot separate guarantees that coverage fails. It is included because the size of the failure is the useful part, and because it makes explicit that good coverage elsewhere does not license a causal reading.
+That last construction is close to tautological: removing from the truth something the data cannot separate guarantees that coverage fails once the removed part is large enough. At the strength used in the table it is not yet large enough: the hierarchical intervals cover 92.9%. It is included because the size of the failure is the useful part, and because it makes explicit that good coverage elsewhere does not license a causal reading.
 
 ### 6.3 Metrics
 
@@ -224,11 +224,11 @@ Bias, RMSE, 95% interval coverage, and rank recovery (Spearman against the true 
 
 ### 6.4 The confounding sweep
 
-Rather than choose one confounder size and report whether it broke, the strength of the catcher-correlated confounder is swept from zero to twice the true catcher effect, at 50 replications per point. This converts "does unmeasured confounding matter?" — which has an arbitrary answer — into "how much would it take?", which does not.
+Rather than choose one confounder size and report whether it broke, the strength of the catcher-correlated confounder is swept from zero to twice the true catcher effect, at 50 replications per point. The sweep runs on the `omitted_covariate` generator, which also concentrates battery pairings, so the unadjusted estimator starts at 78% even at zero strength. This converts "does unmeasured confounding matter?" — which has an arbitrary answer — into "how much would it take?", which does not.
 
 ### 6.5 What the simulation does not establish
 
-The generating process is the model's own functional form in five of eight scenarios. Good coverage there is close to guaranteed and should not be read as validation. The three scenarios built to break the model did not break it, which bounds the claim: the intervals survive every misspecification that could be constructed here, not every misspecification.
+The generating process is the model's own functional form in five of eight scenarios. Good coverage there is close to guaranteed and should not be read as validation. The three scenarios built to break the model did not break it at the strengths used, which bounds the claim: the intervals survive the misspecifications tested here, at those strengths, not every misspecification. The sweep in §6.4 shows one of them breaking the intervals once it is made larger.
 
 ---
 
@@ -241,17 +241,19 @@ the README's: unmodelled pitch characteristics, a flat run value, the coordinate
 **Catcher and pitcher are partially inseparable.** A pitcher's pitches are caught by his
 most frequent catcher a median 60.5% of the time, 84.8% at the 90th percentile. The
 posterior correlation between a catcher's effect and his most-caught pitcher's effect has
-median ρ = −0.221, with 63.6% of pairs below −0.2. The catcher term is association, not
-skill, and this is the channel that makes it so.
+median ρ = −0.221, with 63.6% of pairs below −0.2. In simulation this costs precision
+rather than coverage (the battery scenario holds at 94%). It still means the catcher term
+takes whatever about a pitcher changes with the catcher he throws to.
 
 **Coverage at the extremes is 87–91%, not 95%**, in every simulated scenario,
 including the unconfounded baseline. Shrinkage is doing this, so it is a property of the
 estimator rather than of this dataset, and it applies exactly where a leaderboard is read.
 
 **Unmeasured catcher-correlated confounding costs coverage in a measurable way:** 94% with
-none, 88% when it matches the size of the effect being measured, 66% at twice. Section 3.2
-establishes that this structure is present in the real data. Nothing in the data bounds
-where on that curve the real analysis sits, and no amount of better inference would change
+none, 88% when it matches the size of the effect being measured, 66% at twice. This is a
+different threat from the pairing concentration in §3.2: a variable that tracks the
+catcher and is never observed. Nothing in the data bounds where on that curve the real
+analysis sits, and no amount of better inference would change
 that. It is a design property, not an estimation one.
 
 ---
@@ -260,7 +262,7 @@ that. It is a design property, not an estimation one.
 
 Recorded because each cost time and each would have produced a wrong number if it had gone unnoticed.
 
-**A single validation split is not enough to detect a bias of this size.** One 971-game split showed a shadow-zone residual bias significant at p ≈ 0.03 across all three thresholds. Five-fold cross-fitting over all 4,856 games put it at z = +0.30, covering zero. The first result was a false positive from running one 5% test against three highly correlated thresholds. This is also a caution about v1's other single-split figures.
+**A single validation split is not enough to detect a bias of this size.** One 971-game split showed a shadow-zone residual bias significant at p ≈ 0.03 at all three thresholds. Five-fold cross-fitting over all 4,856 games put it at z = +0.30, covering zero. The agreement across thresholds looked like three pieces of evidence and was one: the bands share most of their pitches, so the three tests are nearly the same test, and a single p ≈ 0.03 on a single split is weak.
 
 **Timing a JAX program without blocking measures dispatch, not computation.** `mcmc.run()` returns before the samples exist; they materialise when first accessed. `jax.block_until_ready(mcmc.get_samples())` is required before stopping the clock.
 
