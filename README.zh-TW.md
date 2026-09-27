@@ -23,7 +23,7 @@
 | 主審之間的變異大於捕手之間（τ 0.233 對 0.192） | **不成立。** 在 2023 上重現（P = 0.81），但在季別之間會翻面、隨 shadow zone 門檻移動，而且從未強到可以當成事實陳述 |
 | 榜單能區分捕手 | **部分成立。** 63 位合格捕手中有 23 位的區間不含零，但多數相鄰名次分不出勝負 |
 | 對 Savant 的 r = 0.990 說明位置模型是對的 | **對，但它說明的比看起來少**——這個相關係數對估計式的品質幾乎完全不敏感 |
-| 產生這一切的變分擬合沒有收斂 | **無害。** NUTS 重現到小數第四位 |
+| 產生這一切的變分擬合沒有收斂 | **無害。** 在同一份 2022 資料上改用 NUTS 擬合，每位捕手的效果與 VB 相關 r = 0.9999 |
 
 最後一列是我開這一輪的原因。結果它是唯一沒問題的那一條。
 
@@ -37,7 +37,7 @@
 
 基準機率一律樣本外。framing 的訊號是「實際 − 預測」。如果預測來自一個看過這顆球的模型，殘差會被擬合本身壓平一部分。這裡每一顆球的基準機率都來自沒看過它的模型：2021–2022 用依 `game_pk` 分割的五折 cross-fitting，2023 則用只在 2021–2022 上擬合的模型。
 
-分析限定在 shadow zone——這裡指的是**模型定義**的帶狀區域，也就是基準模型給出 0.2 < p̂ < 0.8 的球，不是 Statcast 那個以好球帶邊緣內外各一顆球寬度劃出的幾何 Shadow Zone。judgement 有疑義的地方才輪得到 framing。這個帶狀區域佔判定球的 14.5%，卻帶有關於捕手效果的 60.8% Fisher information——資訊量正比於 p(1−p)，正中好球帶的球幾乎不帶資訊。標準誤只放大 1.27 倍，不是球數比暗示的 2.6 倍。
+分析限定在 shadow zone——這裡指的是**模型定義**的帶狀區域，也就是基準模型給出 0.2 < p̂ < 0.8 的球，不是 Statcast 那個以好球帶邊緣內外各一顆球寬度劃出的幾何 Shadow Zone。judgement 有疑義的地方才輪得到 framing。以 v1 的基準模型在 2023 上量，這個帶狀區域佔判定球的 14.5%，卻帶有關於捕手效果的 60.8% Fisher information——資訊量正比於 p(1−p)，正中好球帶的球幾乎不帶資訊。（用 v2 的基準模型，帶狀區域佔 15%。）標準誤只放大 1.27 倍，不是球數比暗示的 2.6 倍。
 
 2023 在 v2 的整個開發期間鎖起來，只花用一次。模型形式、門檻、推論引擎、估計目標、要報哪些數字，全部在 2021–2022 上決定完畢才動它，最後才用那麼一次，為的是讓新數字能和 v1 發表的 2023 表格在同一季上並排。它是**鎖定的評估集，不是未見過的 holdout**：v1 分析過 2023 也在上面發表過榜單，而要跟那張表對照正是這一輪花掉這一季的理由。這個紀律買到的是「沒有任何 v2 的決定是對著 2023 調出來的」；它買不到的是「2023 沒被看過」。
 
@@ -106,7 +106,7 @@ v1 的頭號驗證，是它的未調整榜單與 Savant 公布 framing runs 之�
 
 把它釘回 1 再擬合一次，變的只有用語。每位捕手的 runs 相關 r = 0.9997，單一捕手最大位移 0.40 runs 對上 28.9 的全距，前十名還是同樣那十位，P(τ 主審 > τ 捕手) 從 0.4635 變成 0.4615。那個假設是錯的，而估計式並不依賴它——這是這個發現比較有用的版本，也比「榜單真的動了」無聊。跑在 train pool 上而不是 2023，因為 2023 已經花掉了（[`models/sensitivity.py`](models/sensitivity.py)、[`results/sensitivity_slope.csv`](results/sensitivity_slope.csv)）。
 
-換引擎什麼都沒改變，本來也不會。在完全相同的資料上，兩種引擎對每位捕手效果的相關是 r = 0.9999，變分貝葉斯低估後驗標準差 5%。NUTS 提供的是後驗樣本，而下面那種機率非要它不可。
+換引擎什麼都沒改變，本來也不會。在完全相同的資料上（2022，shadow zone），兩種引擎對每位捕手效果的相關是 r = 0.9999，變分貝葉斯低估後驗標準差 5%。NUTS 提供的是後驗樣本，而下面那種機率非要它不可。
 
 2023，也就是 v1 報告的那一季：
 
@@ -153,7 +153,7 @@ shadow zone 的門檻同樣會推動它。在合併的 train pool 上，事前�
 
 三個門檻現在都報了（[`results/sensitivity_threshold.csv`](results/sensitivity_threshold.csv)，以及 METHODS §2.3）。榜單幾乎不動——每位捕手的 runs 對主門檻的相關是 0.991 與 0.987——而主文用的那個門檻，既不是區間最窄的，也不是讓最多捕手脫離零的。從最寬到最窄，分得出來的捕手比例分別是 24.8%、23.0%、16.2%。
 
-這張圖的圖說帶著本節其他部分帶不了的一句：模擬顯示兩端的涵蓋率約 88% 而非 95%。收縮把極端往內拉，而榜單就是給人看兩端的。
+這張圖的圖說帶著本節其他部分帶不了的一句：模擬顯示兩端的涵蓋率只有 87% 到 91%，而非 95%。收縮把極端往內拉，而榜單就是給人看兩端的。
 
 ### 6. 拿已知真值檢驗估計式
 
@@ -177,7 +177,7 @@ shadow zone 的門檻同樣會推動它。在合併的 train pool 上，事前�
 
 混淆維持在被測效果的一半以內時，涵蓋率守得住；等大時掉到 88%；兩倍時 66%。v1 的 Limitations 用一句「捕手不是隨機分配給投手的」帶過，這張圖就是那句話加上數字。
 
-還有一個沒預期到的發現，就是上圖中實心與空心標記之間的距離：效果最大的三分之一，其涵蓋率比整體低 3 到 6 個百分點，而且每一個情境都是，包括基準情境。未調整估計式沒有這個落差，因為它根本不收縮——它的問題是區間到處都太窄。
+還有一個沒預期到的發現，就是本節前面那張情境圖中實心與空心標記之間的距離：效果最大的三分之一，其涵蓋率比整體低 4 到 7 個百分點，而且每一個情境都是，包括基準情境。未調整估計式沒有這個落差，因為它根本不收縮——它的問題是區間到處都太窄。
 
 ### 7. 外部驗證分不出來的東西
 
@@ -217,21 +217,21 @@ shadow zone 的門檻同樣會推動它。在合併的 train pool 上，事前�
 
 ## 2023 榜單
 
-以 shadow zone 球數計算的 framing runs，附 95% 可信區間，並列 Savant 同季公布的數字。注意分母不同：這裡只計入判定有疑義的那 14.5% 的球。
+以 shadow zone 球數計算的 framing runs，附 95% 可信區間，並列 Savant 同季公布的數字，依 framing runs 排序。注意分母不同：這裡只計入判定有疑義的那 15% 的球。
 
 | 捕手 | shadow 球數 | framing runs | 95% 區間 | Savant |
 |---|--:|--:|---|--:|
 | Austin Hedges | 791 | +11.1 | [+7.5, +14.6] | +14.5 |
-| Francisco Álvarez | 1,088 | +9.2 | [+5.1, +13.1] | +14.0 |
+| Francisco Álvarez | 1,088 | +9.2 | [+5.1, +13.1] | +13.9 |
+| Jonah Heim | 1,181 | +7.1 | [+2.6, +11.6] | +11.9 |
 | Patrick Bailey | 965 | +6.7 | [+3.1, +10.3] | +17.0 |
-| Jason Delay | 633 | +4.4 | [+1.7, +7.1] | +6.6 |
-| Victor Caratini | 640 | +4.2 | [+1.3, +7.1] | +7.2 |
+| Cal Raleigh | 1,180 | +6.3 | [+1.8, +10.6] | +6.3 |
 | … | | | | |
-| Jose Herrera | 418 | −2.9 | [−4.9, −0.7] | −4.1 |
-| Riley Adams | 424 | −3.0 | [−5.0, −0.9] | −6.1 |
-| Logan O'Hoppe | 540 | −4.1 | [−6.5, −1.7] | −6.4 |
+| Keibert Ruiz | 1,410 | −6.6 | [−11.2, −1.9] | −11.9 |
+| J.T. Realmuto | 1,445 | −6.7 | [−11.9, −1.7] | −14.4 |
+| Martín Maldonado | 1,154 | −7.4 | [−11.7, −3.0] | −15.7 |
 
-榜首這幾個名字就是 v1 的名字——Hedges、Álvarez、Bailey 在 v1 的 2023 表格裡也是前段。改變的不是誰在榜上，而是這份榜單能承載多少信心：這 63 位裡有 40 位的區間包含零。
+頭尾這幾個名字就是 v1 的名字。Hedges、Álvarez、Bailey 在 v1 的 2023 表格裡也是前段，Maldonado 和 Ruiz 則是 v1 墊底的三位之二。改變的不是誰在榜上，而是這份榜單能承載多少信心：這 63 位裡有 40 位的區間包含零。
 
 ---
 
@@ -271,15 +271,17 @@ v1 的模組（`baseline_gam.py`、`framing_runs.py`、`hierarchical.py`、`reli
 
 ## 結果表
 
-這份文件裡的每一個數字都可以追到 [`results/`](results/) 底下的一個 CSV，由 `uv run python make_results.py` 從模型快取寫出。那支程式不重新擬合任何東西；快取缺了就印出該跑哪一行指令，並跳過那張表。
+下面這些 CSV 由 `uv run python make_results.py` 從模型快取寫進 [`results/`](results/)。那支程式不重新擬合任何東西；快取缺了就印出該跑哪一行指令，並跳過那張表。
+
+不在這些檔案裡的數字，由產生它的模組印出：單季擬合與引擎對照在 [`models/compare_engines.py`](models/compare_engines.py)，2023 對 Savant 的相關在 [`models/holdout.py`](models/holdout.py)，log loss 在 [`models/baseline_v2.py`](models/baseline_v2.py)，METHODS §3 在 [`models/identify.py`](models/identify.py)。v1 的數字來自 [`v1.0`](../../tree/v1.0) 的模組。有三個數字來自沒有收進 repo 的一次性檢查：shadow zone 的 Fisher information 佔比、第 2 節的 isotonic 重新校準、第 3 節全部判定球的 0.958 相關。
 
 | 檔案 | 撐住哪些數字 |
 |---|---|
-| [`leaderboard_2023_holdout.csv`](results/leaderboard_2023_holdout.csv) | 下面那份 2023 榜單——全部 102 位捕手的 Δ、framing runs、95% 區間與 Savant 數字 |
+| [`leaderboard_2023_holdout.csv`](results/leaderboard_2023_holdout.csv) | 上面那份 2023 榜單——全部 102 位捕手的 Δ、framing runs、95% 區間與 Savant 數字 |
 | [`leaderboard_2021_2022_train.csv`](results/leaderboard_2021_2022_train.csv) | 2021–2022 合併擬合的同一組欄位，148 位捕手 |
 | [`leaderboard_v1_pooled_2021_2023.csv`](results/leaderboard_v1_pooled_2021_2023.csv) | v1 的三季合併 VB 榜單（第 8 節） |
 | [`variance_components.csv`](results/variance_components.csv) | 第 4 節的 τ 表與 P(τ 主審 > τ 捕手) |
-| [`separability.csv`](results/separability.csv) | 第 5 節的三個門檻，兩組擬合 |
+| [`separability.csv`](results/separability.csv) | 第 5 節的三個最低球數門檻（0、500、1,000），兩組擬合 |
 | [`external_checks.csv`](results/external_checks.csv) | 第 7 節的相關與 bootstrap 區間 |
 | [`sim_coverage.csv`](results/sim_coverage.csv) | 第 6 節的八情境 × 兩個估計式 |
 | [`sim_confound_sweep.csv`](results/sim_confound_sweep.csv) | 混淆強度掃描 |
@@ -308,7 +310,8 @@ uv run python -m models.intervals
 uv run python -m sim.run 100
 uv run python -m sim.run sweep 50
 
-# 係數敏感度：b 自由 vs b=1，在 train pool 上擬合兩次（約 15 分鐘）
+# 敏感度：b 自由 vs b=1，再加兩個替代的 shadow zone 門檻——
+# 在 train pool 上擬合四次（約 30–40 分鐘）
 uv run python -m models.sensitivity
 
 # 外部驗證，然後是 holdout
@@ -359,19 +362,19 @@ docs/images/           en/ 與 zh/，兩份 README 使用的圖
 ## 限制
 
 - **是關聯，不是因果。** 捕手項是「在這個模型設定下與捕手相關的變異」。第 6 節量化了未觀測混淆的後果：當一個與捕手相關的混淆與被測效果等大時，涵蓋率掉到 88%，兩倍時 66%。資料本身無法排除這種可能。
-- **兩端的涵蓋率約 88% 而非 95%**，每一個模擬情境皆然。榜單的頭尾比區間看起來的更不牢靠。
+- **兩端的涵蓋率只有 87–91%，而非 95%**，每一個模擬情境皆然。榜單的頭尾比區間看起來的更不牢靠。
 - 模擬用的是 30 位捕手、每人約 500 球。涵蓋率數字不能直接當成整季樣本量下的精確值。
-- 球種、球速、位移、打者身分、球場都沒有進模型。Savant 有做球場與投手調整，這裡沒有。
+- 球種、球速、位移、打者身分、球場都沒有進模型。Savant 有做球場調整，這裡沒有。投手以隨機效果進模型，但球數少的投手共用一個池化效果（見下）。
 - 球數在基準模型中是加性項，只平移好球帶而不改變其形狀。改變形狀的效應是真實的，也用分球數各自擬合展示過，但它不在產生 framing 數字的那個模型裡。
 - |plate_x| > 2.5 英尺、或標準化高度落在 [−1, 2] 之外的球，在建模前剔除，以免樣條外插：約佔 2%，其中 2023 年的 7,386 顆裡只有 1 顆是好球判定。它們幾乎不帶 framing 訊號。
-- 判定球數少的投手併成一組以控制 level 數（單季擬合 < 100 顆，合併擬合 < 150 顆）。他們的個別效應無論如何都會收縮到接近零。
+- 在擬合資料裡 shadow zone 球數少於 100 的投手，共用一個池化效果：2021–2022 的擬合是 1,123 位中的 749 位（佔 25% 的球），2023 是 835 位中的 669 位（佔 48%）。他們的個別效應本來就會被大幅收縮，但這些球實際上沒有針對投手本人做調整。（v1 的門檻是單季判定球 < 100 顆、三季合併 < 150 顆。）
 - Run value 沿用 v1 的固定 0.125。真實價值取決於球數——偷到第三個好球遠比偷到第一個壞球值錢——所以每位捕手的總計是近似值。改成隨球數變動只會等比例縮放榜單，不改變任何統計結論。
 - holdout 紀律是有代價的：2023 被保留，所以跨季穩定性只剩一組年度配對，沒有衰減曲線。
 - 基準模型在 shadow zone 有輕微校準偏差（第 2 節）。修正它會讓榜單移動約全距的 1%。
 
 ## 參考文獻
 
-- [Pavlidis, H. & Brooks, D. (2014). *Framing and Blocking Pitches: A Regressed,Probabilistic Model*. Baseball Prospectus.](https://www.baseballprospectus.com/news/article/22934/)
+- [Pavlidis, H. & Brooks, D. (2014). *Framing and Blocking Pitches: A Regressed, Probabilistic Model*. Baseball Prospectus.](https://www.baseballprospectus.com/news/article/22934/)
 - [Judge, J., Pavlidis, H. & Brooks, D. (2015). *Moving Beyond WOWY: A Mixed Approach to Measuring Catcher Framing*. Baseball Prospectus.](https://www.baseballprospectus.com/news/article/25514/)
 - [Albert, J. (2023). *Called Strikes*.](https://bayesball.github.io/BLOG/Called_Strikes.html)
 - Deshpande & Wyner (2017), *A Hierarchical Bayesian Model of Pitch Framing*, JQAS.

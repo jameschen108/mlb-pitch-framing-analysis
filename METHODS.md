@@ -60,7 +60,7 @@ Analysis is restricted to pitches the baseline model puts at 0.2 < p̂ < 0.8. Tw
 
 **Substantive**: framing can only operate where the call is in doubt. A pitch down the middle is a strike regardless of the receiver.
 
-**Statistical**: the discarded pitches carry almost no information. Fisher information about a catcher's effect scales with p(1−p), which is near zero at the extremes. Summing over 2023:
+**Statistical**: the discarded pitches carry almost no information. Fisher information about a catcher's effect scales with p(1−p), which is near zero at the extremes. Summing over 2023, with the band drawn by v1's in-sample baseline (the v2 baseline puts 15% of 2023 pitches in it):
 
 | | Share of pitches | Share of information |
 |---|--:|--:|
@@ -159,15 +159,15 @@ a ~ N(0, 2),        b ~ N(1, 1)
 
 **Two-stage, but not an offset model.** The baseline logit enters the second stage as a covariate whose coefficient `b` is estimated under a N(1, 1) prior — not held at 1, which is what the word *offset* means. The distinction is not cosmetic. Under a true offset the second stage scores the first stage's predictions exactly as they come; here `b` is free to rescale them, absorbing the slope component of the §4.1 miscalibration before the random effects ever see the residual. Fit freely on the train pool, `b` has posterior mean **1.089**, 95% interval **[1.071, 1.107]**, with P(b > 1) = 1.000. The interval excludes 1 outright, so this is not a case where an offset would have been an adequate approximation loosely described — the data reject it. (v1's VB fit records 1.031 on full-season 2023 and 1.026 on the pooled three seasons, [`results/v1_fit_summary.csv`](results/v1_fit_summary.csv); a different sample and a different engine, not a contradiction.)
 
-**Fixing `b = 1` changes the wording and nothing else.** Refitting the same pitches with the coefficient pinned at 1 — the offset model this document once described — leaves per-catcher framing runs correlated with the free fit at r = 0.9997 (Spearman 0.9991). The largest single-catcher shift is **0.40 runs against a leaderboard spread of 28.9**, the mean shift is 0.06, the top ten are the same ten, and the largest rank change among 148 catchers is 12 places. All three variance components move by under 0.005, and P(τ_umpire > τ_catcher) goes from 0.4635 to 0.4615. So the assumption is false, and the estimator does not depend on it. Both fits are in [`models/sensitivity.py`](models/sensitivity.py), summarised in [`results/sensitivity_slope.csv`](results/sensitivity_slope.csv).
+**Fixing `b = 1` changes the wording and nothing else.** Refitting the same pitches with the coefficient pinned at 1 — the offset model this document once described — leaves per-catcher framing runs correlated with the free fit at r = 0.9997 (Spearman 0.9991). The largest single-catcher shift is **0.40 runs against a leaderboard spread of 28.9**, the mean shift is 0.06, the top ten are the same ten, and the largest rank change among 148 catchers is 12 places. The catcher and umpire components move by under 0.005 and the pitcher component by 0.006, and P(τ_umpire > τ_catcher) goes from 0.4635 to 0.4615. So the assumption is false, and the estimator does not depend on it. Both fits are in [`models/sensitivity.py`](models/sensitivity.py), summarised in [`results/sensitivity_slope.csv`](results/sensitivity_slope.csv).
 
 **The sensitivity is run on the 2021–2022 train pool, not on 2023.** 2023 is a locked evaluation set already spent once (§2.4); refitting it for a robustness check would spend it a second time.
 
-Pitchers with fewer than 100 pitches in a season are pooled into a single group; their individual effects would shrink to near zero regardless and the level count is otherwise unmanageable.
+Pitchers with fewer than 100 shadow-zone pitches in the data being fitted share a single pooled effect: 749 of 1,123 pitchers, carrying 25% of the pitches, on the train pool; 669 of 835, carrying 48%, on 2023. Their individual effects would be heavily shrunk anyway, but for those pitches the pitcher term is one shared intercept rather than an adjustment for the pitcher actually throwing.
 
 **Non-centred parameterisation is not optional.** When τ is small the centred form has a funnel-shaped posterior and NUTS produces divergences. Written non-centred from the start, all fits in this project returned zero or near-zero divergences (2 across 800,000 draws in the simulation study).
 
-**The engine swap changes nothing, and that is the finding.** On identical data, variational Bayes and NUTS agree on per-catcher effects at r = 0.9999 (Spearman 0.9998), and VB's posterior standard deviation is 0.95× NUTS's. The theoretical warning that variational inference understates posterior variance is correct in direction and worth 5% here. What NUTS supplies is posterior *samples*, which pairwise comparison probabilities and coverage checks require and VB cannot provide.
+**The engine swap changes nothing, and that is the finding.** On identical data (2022, shadow zone), variational Bayes and NUTS agree on per-catcher effects at r = 0.9999 (Spearman 0.9998), and VB's posterior standard deviation is 0.95× NUTS's. The theoretical warning that variational inference understates posterior variance is correct in direction and worth 5% here. What NUTS supplies is posterior *samples*, which pairwise comparison probabilities and coverage checks require and VB cannot provide.
 
 ---
 
@@ -181,7 +181,7 @@ Pitchers with fewer than 100 pitches in a season are pooled into a single group;
 
 **Separability.** On 2023: 27 of 102 catchers (26%) have intervals excluding zero; 27% of pairs are resolved at 95%. Restricting to catchers with ≥1,000 shadow-zone pitches raises these to 53% and 55%. On 2021–2022, P(rank 1 > rank 2) = 0.77.
 
-**Coverage at the extremes is lower than nominal.** Simulation shows coverage for the largest third of effects running 3 to 6 points below overall coverage, in every scenario including the unconfounded baseline — 89.0% against 94.7% there. The estimator is doing this, not the data: partial pooling buys its stability at the tails, which is where a leaderboard is read. The caterpillar plot carries the caveat as a caption.
+**Coverage at the extremes is lower than nominal.** Simulation shows coverage for the largest third of effects running 4 to 7 points below overall coverage, in every scenario including the unconfounded baseline — 89.0% against 94.7% there. The estimator is doing this, not the data: partial pooling buys its stability at the tails, which is where a leaderboard is read. The caterpillar plot carries the caveat as a caption.
 
 ---
 
@@ -244,7 +244,7 @@ posterior correlation between a catcher's effect and his most-caught pitcher's e
 median ρ = −0.221, with 63.6% of pairs below −0.2. The catcher term is association, not
 skill, and this is the channel that makes it so.
 
-**Coverage at the extremes is about 88%, not 95%**, in every simulated scenario,
+**Coverage at the extremes is 87–91%, not 95%**, in every simulated scenario,
 including the unconfounded baseline. Shrinkage is doing this, so it is a property of the
 estimator rather than of this dataset, and it applies exactly where a leaderboard is read.
 

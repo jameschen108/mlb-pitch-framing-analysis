@@ -133,6 +133,7 @@ def comparison(res: dict) -> dict:
         "top10_overlap": int(len(set(np.argsort(-ra)[:10]) & set(np.argsort(-rb)[:10]))),
         "tau_catcher_shift": float(a["tau"]["catcher"].mean() - b["tau"]["catcher"].mean()),
         "tau_umpire_shift": float(a["tau"]["umpire"].mean() - b["tau"]["umpire"].mean()),
+        "tau_pitcher_shift": float(a["tau"]["pitcher"].mean() - b["tau"]["pitcher"].mean()),
     }
 
 
@@ -258,7 +259,8 @@ if __name__ == "__main__":
     print(f"  榜單全距           自由 {c['spread_free']:.1f} → 固定 {c['spread_fixed']:.1f} runs")
     print(f"  最大名次變動       {c['max_rank_change']} 名，前十重疊 {c['top10_overlap']}/10")
     print(f"  τ 捕手位移         {c['tau_catcher_shift']:+.4f}"
-          f"   τ 主審位移 {c['tau_umpire_shift']:+.4f}")
+          f"   τ 主審位移 {c['tau_umpire_shift']:+.4f}"
+          f"   τ 投手位移 {c['tau_pitcher_shift']:+.4f}")
 
     print(f"\n=== shadow zone 門檻敏感度（事前承諾的三個）===")
     ts = threshold_summary(run_thresholds())

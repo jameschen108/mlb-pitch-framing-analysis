@@ -35,7 +35,7 @@ LABELS = {
         "cat_title": "Catcher framing effect, 2023, with 95% credible intervals",
         "cat_x": "Catchers, ranked by estimated effect  ({k} of {n} have intervals excluding zero)",
         "cat_y": "Extra called strikes per 100 shadow-zone pitches",
-        "cat_note": ("Simulation puts coverage at the extremes near 88%, not 95% — shrinkage pulls "
+        "cat_note": ("Simulation puts coverage at the extremes at 87–91%, not 95% — shrinkage pulls "
                      "the ends in, so the top and bottom are less firm than they look."),
         "scenarios": {
             "baseline": "baseline", "unequal": "unequal workloads",
@@ -57,7 +57,7 @@ LABELS = {
         "cat_title": "2023 年捕手 framing 效果與 95% 可信區間",
         "cat_x": "捕手（依估計效果排序，{n} 位中有 {k} 位的區間不含零）",
         "cat_y": "每 100 顆 shadow zone 球的額外好球數",
-        "cat_note": "模擬顯示兩端的涵蓋率約 88% 而非 95%：收縮把極端往內拉，上下兩端比看起來的更不確定。",
+        "cat_note": "模擬顯示兩端的涵蓋率只有 87–91%，而非 95%：收縮把極端往內拉，上下兩端比看起來的更不確定。",
         "scenarios": {
             "baseline": "基準", "unequal": "樣本不均",
             "umpire_confound": "主審混淆", "battery": "投捕綁定",
