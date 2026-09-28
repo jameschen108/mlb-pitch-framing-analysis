@@ -55,5 +55,8 @@ def fetch_official_framing(year: int = 2023, force: bool = False) -> pl.DataFram
 
 
 if __name__ == "__main__":
-    df = fetch_official_framing(2023)
-    print(df.sort("rv_tot", descending=True).head(10))
+    import sys
+
+    for season in map(int, sys.argv[1:] or ["2023"]):   # python -m data.official 2024 2025
+        df = fetch_official_framing(season)
+        print(df.sort("rv_tot", descending=True).head(10))

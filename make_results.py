@@ -42,7 +42,7 @@ def _need(path: Path, how: str):
 
 
 def _catcher_names() -> pl.DataFrame:
-    """mlbam_id → 姓名。Savant 榜單是唯一有名字的來源，三季聯集取第一次出現。
+    """mlbam_id → 姓名。Savant 榜單是唯一有名字的來源，各季聯集取第一次出現。
 
     **只讀已經抓下來的快取，不觸發下載。** 這支程式的契約是「只讀快取」，網路也
     算在內：沒有快取時它該少一個 name 欄位，而不是安靜地去打 savant 的頁面。CI 因
@@ -51,7 +51,8 @@ def _catcher_names() -> pl.DataFrame:
     from data.official import RAW_DIR, fetch_official_framing
 
     frames = []
-    for season in (2023, 2022, 2021):
+    # 2024–25 排在最後：已發表的表格沿用原本三季的名字寫法，新季只補新面孔
+    for season in (2023, 2022, 2021, 2024, 2025):
         if not (RAW_DIR / f"official_framing_{season}.parquet").exists():
             continue
         try:
@@ -181,6 +182,34 @@ def _external_checks() -> pl.DataFrame | None:
     return pl.DataFrame(rows)
 
 
+def _new_season_checks() -> tuple[pl.DataFrame | None, pl.DataFrame | None]:
+    """2021–2025 的每一對球季，以及每一季對照 Savant。
+
+    2021–22 的單季估計來自 `season_estimates.parquet`，2023–25 來自 holdout 快取。
+    holdout 快取一個都沒有的話，這兩張表和 external_checks 沒有差別，就不寫。
+    """
+    from models.holdout import HOLDOUT_SEASONS, cache_path
+
+    if _need(ARTIFACT_DIR / "season_estimates.parquet",
+             "uv run python -m models.validate") is None:
+        return None, None
+    for season in HOLDOUT_SEASONS[1:]:
+        _need(cache_path(season), f"uv run python -m models.holdout --season {season}")
+
+    from models.validate import all_estimates, holdout_estimates, savant_by_season, stability_by_lag
+    if holdout_estimates() is None:
+        return None, None
+    est = all_estimates()
+    return stability_by_lag(est), savant_by_season(est)
+
+
+def _baseline_transport() -> pl.DataFrame | None:
+    from models.holdout import TRANSPORT_PATH
+    if _need(TRANSPORT_PATH, "uv run python -m models.holdout --transport") is None:
+        return None
+    return pl.read_parquet(TRANSPORT_PATH)
+
+
 # ---- 模擬 ----
 
 def _sim_table(path: Path, by: list[str]) -> pl.DataFrame:
@@ -263,13 +292,17 @@ def main() -> None:
         df.write_csv(path, float_precision=6)
         written.append((name, df.height))
 
-    # 後驗快取：2023 holdout 與 2021–2022 合併 train pool
+    # 後驗快取：2023–2025 holdout 與 2021–2022 合併 train pool
     fits: dict[str, dict] = {}
     for fit_name, fname, how, season in (
         ("2023_holdout", "holdout_2023_posterior.pkl",
          "uv run python -m models.holdout", 2023),
         ("2021_2022_train", "delta_posterior_train.pkl",
          "uv run python -m models.intervals", None),
+        ("2024_holdout", "holdout_2024_posterior.pkl",
+         "uv run python -m models.holdout --season 2024", 2024),
+        ("2025_holdout", "holdout_2025_posterior.pkl",
+         "uv run python -m models.holdout --season 2025", 2025),
     ):
         path = _need(ARTIFACT_DIR / fname, how)
         if path is None:
@@ -284,6 +317,12 @@ def main() -> None:
         write("separability", _separability(fits))
 
     write("external_checks", _external_checks())
+
+    # 2024–2025 加入之後的外部檢驗：所有球季配對、逐季對照 Savant、基準模型搬家
+    stab, sav = _new_season_checks()
+    write("year_over_year", stab)
+    write("vs_savant_by_season", sav)
+    write("baseline_transport", _baseline_transport())
 
     sens, sens_diff = _sensitivity()
     write("sensitivity_slope", sens)
@@ -312,7 +351,7 @@ def main() -> None:
         print(f"  {name}.csv  ({n} 列)")
     if _missing:
         print("\n快取缺漏，以下表格沒產生：")
-        for m in _missing:
+        for m in dict.fromkeys(_missing):      # 同一個快取可能好幾張表都要
             print(f"  {m}")
 
 

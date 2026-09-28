@@ -14,12 +14,19 @@
 **2023 是 holdout，這裡只用 2021 和 2022。** 跨季穩定性因此只有一組年度配對，
 沒辦法看衰減曲線——那是 holdout 紀律的代價，要在 METHODS 講明。
 
+2024–2025 加入之後這個代價付清了一部分：`holdout_estimates()` 從 `models/holdout`
+的快取讀 2023–2025 的單季估計（不重新擬合），`stability_by_lag()` 把 2021–2025
+的每一對球季都算一次。2021–22 的基準機率是 cross-fit 的 out-of-fold，2023–25 是
+train-only 模型的預測，兩者都是樣本外，但不是同一種；跨這條線的配對要記得這件事。
+
 用法
 ----
     uv run python -m models.validate
 """
 
 from __future__ import annotations
+
+import pickle
 
 import numpy as np
 import polars as pl
@@ -87,13 +94,51 @@ def season_estimates(force: bool = False) -> pl.DataFrame:
     return df
 
 
-def year_over_year(est: pl.DataFrame, min_shadow: int = MIN_SHADOW) -> dict:
-    """2021 → 2022 的相關，兩個估計式各算一次。"""
-    a = est.filter(pl.col("season") == SEASONS[0])
-    b = est.filter(pl.col("season") == SEASONS[1])
-    j = a.join(b, on="catcher", suffix="_b").filter(
+def holdout_estimates() -> pl.DataFrame | None:
+    """2023–2025 的單季估計，格式同 `season_estimates()`，只讀 holdout 快取。"""
+    from models.holdout import HOLDOUT_SEASONS, cache_path
+
+    frames = []
+    for season in HOLDOUT_SEASONS:
+        path = cache_path(season)
+        if not path.exists():
+            continue
+        with open(path, "rb") as fh:
+            post = pickle.load(fh)
+        n, hd, rd = post["n_pitches"], post["draws"].mean(0), post["resid_delta"]
+        frames.append(pl.DataFrame({
+            "catcher": post["catcher_ids"],
+            "season": pl.Series([season] * len(n), dtype=pl.Int32),
+            "shadow_pitches": n,
+            "hier_delta": hd,
+            "resid_delta": rd,
+            "hier_runs": hd * n * RUN_VALUE,
+            "resid_runs": rd * n * RUN_VALUE,
+        }))
+    return pl.concat(frames, how="vertical") if frames else None
+
+
+def all_estimates() -> pl.DataFrame:
+    """2021–2025 的單季估計疊在一起。2021–22 沒有快取時會重新擬合。"""
+    frames = [season_estimates()]
+    if (h := holdout_estimates()) is not None:
+        frames.append(h)
+    return pl.concat(frames, how="vertical")
+
+
+def _pair(est: pl.DataFrame, seasons: tuple[int, int], min_shadow: int) -> pl.DataFrame:
+    """兩季都有、而且兩季都 ≥ min_shadow 顆的捕手，第二季的欄位加 `_b`。"""
+    a = est.filter(pl.col("season") == seasons[0])
+    b = est.filter(pl.col("season") == seasons[1])
+    return a.join(b, on="catcher", suffix="_b").filter(
         (pl.col("shadow_pitches") >= min_shadow) & (pl.col("shadow_pitches_b") >= min_shadow)
     )
+
+
+def year_over_year(est: pl.DataFrame, min_shadow: int = MIN_SHADOW,
+                   seasons: tuple[int, int] = SEASONS) -> dict:
+    """兩季之間的相關（預設 2021 → 2022），兩個估計式各算一次。"""
+    j = _pair(est, seasons, min_shadow)
     out = {"n_catchers": j.height, "min_shadow": min_shadow}
     for est_name, col in (("hierarchical", "hier_delta"), ("residual_runs", "resid_delta")):
         x, y = j[col].to_numpy(), j[f"{col}_b"].to_numpy()
@@ -166,12 +211,7 @@ def external_check_diffs(est: pl.DataFrame, min_shadow: int = MIN_SHADOW,
     """
     out = {}
 
-    a = est.filter(pl.col("season") == SEASONS[0])
-    b = est.filter(pl.col("season") == SEASONS[1])
-    j = a.join(b, on="catcher", suffix="_b").filter(
-        (pl.col("shadow_pitches") >= min_shadow)
-        & (pl.col("shadow_pitches_b") >= min_shadow)
-    )
+    j = _pair(est, SEASONS, min_shadow)
     out[f"year over year {SEASONS[0]}-{SEASONS[1]}"] = paired_bootstrap_diff(
         (j["hier_delta"].to_numpy(), j["hier_delta_b"].to_numpy()),
         (j["resid_delta"].to_numpy(), j["resid_delta_b"].to_numpy()),
@@ -188,6 +228,59 @@ def external_check_diffs(est: pl.DataFrame, min_shadow: int = MIN_SHADOW,
             n_boot=n_boot, seed=seed,
         )
     return out
+
+
+def stability_by_lag(est: pl.DataFrame, min_shadow: int = MIN_SHADOW,
+                     n_boot: int = N_BOOT, seed: int = 0) -> pl.DataFrame:
+    """每一對球季的相關與「階層 − 未調整」的差，按間隔年數排。
+
+    lag 1 看的是持續性，lag 2 以上看它衰減得多快。捕手的組成每年在換，所以間隔越大
+    `n_catchers` 越少，區間也越寬——讀的時候兩欄一起看。
+    """
+    seasons = sorted(est["season"].unique().to_list())
+    rows = []
+    for i, s1 in enumerate(seasons):
+        for s2 in seasons[i + 1:]:
+            j = _pair(est, (s1, s2), min_shadow)
+            yoy = year_over_year(est, min_shadow, seasons=(s1, s2))
+            d = paired_bootstrap_diff(
+                (j["hier_delta"].to_numpy(), j["hier_delta_b"].to_numpy()),
+                (j["resid_delta"].to_numpy(), j["resid_delta_b"].to_numpy()),
+                n_boot=n_boot, seed=seed,
+            )
+            rows.append({
+                "season_a": s1, "season_b": s2, "lag": s2 - s1, "n_catchers": j.height,
+                "hierarchical": yoy["hierarchical"]["pearson"],
+                "residual_runs": yoy["residual_runs"]["pearson"],
+                "hierarchical_spearman": yoy["hierarchical"]["spearman"],
+                "residual_runs_spearman": yoy["residual_runs"]["spearman"],
+                "diff_hier_minus_resid": d["diff"], "diff_ci_lo": d["lo"], "diff_ci_hi": d["hi"],
+                "n_boot": n_boot,
+            })
+    return pl.DataFrame(rows).sort("lag", "season_a")
+
+
+def savant_by_season(est: pl.DataFrame, n_boot: int = N_BOOT, seed: int = 0) -> pl.DataFrame:
+    """每一季對照 Savant，兩個估計式並排加配對差。只用已經抓下來的 Savant 快取。"""
+    from data.official import RAW_DIR
+
+    rows = []
+    for season in sorted(est["season"].unique().to_list()):
+        if not (RAW_DIR / f"official_framing_{season}.parquet").exists():
+            continue
+        off = fetch_official_framing(season).rename({"id": "catcher"})
+        k = est.filter(pl.col("season") == season).join(off, on="catcher")
+        t = k["rv_tot"].to_numpy()
+        d = paired_bootstrap_diff((k["hier_runs"].to_numpy(), t),
+                                  (k["resid_runs"].to_numpy(), t), n_boot=n_boot, seed=seed)
+        rows.append({
+            "season": season, "n_catchers": k.height,
+            "hierarchical": float(np.corrcoef(k["hier_runs"].to_numpy(), t)[0, 1]),
+            "residual_runs": float(np.corrcoef(k["resid_runs"].to_numpy(), t)[0, 1]),
+            "diff_hier_minus_resid": d["diff"], "diff_ci_lo": d["lo"], "diff_ci_hi": d["hi"],
+            "n_boot": n_boot,
+        })
+    return pl.DataFrame(rows)
 
 
 if __name__ == "__main__":
@@ -214,3 +307,12 @@ if __name__ == "__main__":
     print("  外部檢驗的區間全部蓋住 0；模擬則把它們分得很開（sim/）。")
     for name, d in external_check_diffs(est).items():
         print(f"  {name:28s} Δr = {d['diff']:+.3f}   95% CI [{d['lo']:+.3f}, {d['hi']:+.3f}]")
+
+    if holdout_estimates() is None:
+        raise SystemExit
+    full = all_estimates()
+    pl.Config.set_tbl_cols(-1); pl.Config.set_tbl_width_chars(200); pl.Config.set_tbl_rows(-1)
+    print(f"\n=== 所有球季配對（{', '.join(map(str, sorted(full['season'].unique())))}）===")
+    print(stability_by_lag(full).drop("n_boot"))
+    print(f"\n=== 對照 Savant，逐季 ===")
+    print(savant_by_season(full).drop("n_boot"))

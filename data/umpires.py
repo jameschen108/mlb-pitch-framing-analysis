@@ -103,4 +103,7 @@ def attach_umpires(df: pl.DataFrame, season: int = 2023) -> pl.DataFrame:
 
 
 if __name__ == "__main__":
-    fetch_umpires(2023)
+    import sys
+
+    for season in map(int, sys.argv[1:] or ["2023"]):   # python -m data.umpires 2024 2025
+        fetch_umpires(season)
