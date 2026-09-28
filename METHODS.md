@@ -31,7 +31,7 @@ Choosing Δ rather than the logit-scale coefficient `u_catcher` is deliberate: r
 
 ## 2. Data and design
 
-2021–2023 regular seasons, called pitches only: 1.06M, 1.04M after dropping pitches beyond |plate_x| > 2.5 ft or standardized height outside [−1, 2] to keep the spline from extrapolating. Statcast via `pybaseball`; home-plate umpires from the MLB Stats API joined on `game_pk`. Heights standardized as `(plate_z − sz_bot) / (sz_top − sz_bot)`.
+2021–2023 regular seasons, called pitches only: 1.06M, 1.04M after dropping pitches with |plate_x| > 2.5 ft or standardized height outside [−1, 2] to keep the spline from extrapolating. Statcast via `pybaseball`; home-plate umpires from the MLB Stats API joined on `game_pk`. Heights standardized as `(plate_z − sz_bot) / (sz_top − sz_bot)`.
 
 ### 2.1 Out-of-sample baseline probabilities
 
@@ -105,7 +105,7 @@ Assignment of umpires to games is close enough to random, and the schedule mixes
 - 102 catchers × 94 umpires = 9,588 possible pairs; **3,811 observed (39.7%)**
 - Among the 66 catchers with ≥300 shadow-zone pitches, the median catcher worked with **50 distinct umpires**; the least-exposed worked with 27
 
-That is dense crossing. `u_catcher` and `v_umpire` are identified.
+That is dense crossing. `u_catcher` and `u_umpire` are identified.
 
 ### 3.2 Catcher and pitcher do not
 
@@ -116,7 +116,7 @@ The confounding runs in one direction, and it is not the direction one first loo
 
 A pitcher is mostly caught by one catcher, so the data have little room to tell that pitcher's effect from his catcher's. A pitcher's constant effect is in the model, and the simulation confirms the pitcher term absorbs it (§6.2). What the concentration leaves is a problem of separating two terms the model does have.
 
-This shows up directly in the posterior. Taking each qualified catcher and the pitcher he caught most, and correlating their effects across posterior draws (66 pairs, pooled group excluded):
+This shows up directly in the posterior. Taking each catcher with at least 300 shadow-zone pitches and the pitcher he caught most, and correlating their effects across posterior draws (66 pairs, pooled group excluded):
 
 | | ρ |
 |---|--:|
@@ -147,7 +147,7 @@ Logistic GAM (pyGAM), tensor spline with 20 splines per margin. Model selection 
 
 In-sample and out-of-sample log loss differ by 0.002 (0.17346 vs 0.17149). With 410 basis functions against 550,000 rows and a penalty term there was no room to overfit, so v1's in-sample reporting was a methodological flaw that did not distort its fit statistics.
 
-Calibration is the real weakness. Out-of-fold, the fitted surface over-predicts strikes below p̂ = 0.5 and under-predicts above it, monotonically across six bins on 100,000 held-out pitches — a genuine S-shape, from over-smoothing the transition band. Recalibrating isotonically moves catcher framing runs by **0.32 runs from end to end** against a leaderboard spread of 28.5. Real, and below the level at which it would change a conclusion.
+Calibration is the real weakness. Out-of-fold, the fitted surface over-predicts strikes below p̂ = 0.5 and under-predicts above it, by 0.7 to 1.6 points. All three bins below 0.5 over-predict and all three above under-predict, on 100,000 held-out pitches — a genuine S-shape, from over-smoothing the transition band. Recalibrating isotonically shifts per-catcher runs by amounts spanning **0.32 runs**, against a spread of 31.5 runs across the same 84 catchers (≥300 shadow-zone pitches, 2021–2022). Real, and below the level at which it would change a conclusion.
 
 ### 4.2 Hierarchical model
 
@@ -159,7 +159,7 @@ a ~ N(0, 2),        b ~ N(1, 1)
 
 **Two-stage, but not an offset model.** The baseline logit enters the second stage as a covariate whose coefficient `b` is estimated under a N(1, 1) prior — not held at 1, which is what the word *offset* means. The distinction is not cosmetic. Under a true offset the second stage scores the first stage's predictions exactly as they come; here `b` is free to rescale them, absorbing the slope component of the §4.1 miscalibration before the random effects ever see the residual. Fit freely on the train pool, `b` has posterior mean **1.089**, 95% interval **[1.071, 1.107]**, with P(b > 1) = 1.000. The interval excludes 1 outright, so this is not a case where an offset would have been an adequate approximation loosely described — the data reject it. (v1's VB fit records 1.031 on full-season 2023 and 1.026 on the pooled three seasons, [`results/v1_fit_summary.csv`](results/v1_fit_summary.csv); a different sample and a different engine, not a contradiction.)
 
-**Fixing `b = 1` changes the wording and nothing else.** Refitting the same pitches with the coefficient pinned at 1 — the offset model this document once described — leaves per-catcher framing runs correlated with the free fit at r = 0.9997 (Spearman 0.9991). The largest single-catcher shift is **0.40 runs against a leaderboard spread of 28.9**, the mean shift is 0.06, the top ten are the same ten, and the largest rank change among 148 catchers is 12 places. The catcher and umpire components move by under 0.005 and the pitcher component by 0.006, and P(τ_umpire > τ_catcher) goes from 0.4635 to 0.4615. So the assumption is false, and the estimator does not depend on it. Both fits are in [`models/sensitivity.py`](models/sensitivity.py), summarised in [`results/sensitivity_slope.csv`](results/sensitivity_slope.csv).
+**Fixing `b = 1` changes the wording and nothing else.** Refitting the same pitches with the coefficient pinned at 1, which is the offset model, leaves per-catcher framing runs correlated with the free fit at r = 0.9997 (Spearman 0.9991). The largest single-catcher shift is **0.40 runs against a leaderboard spread of 28.9**, the mean shift is 0.06, the top ten are the same ten, and the largest rank change among 148 catchers is 12 places. The catcher and umpire components move by under 0.005 and the pitcher component by 0.006, and P(τ_umpire > τ_catcher) stays at 0.46. So the assumption is false, and the estimator does not depend on it. Both fits are in [`models/sensitivity.py`](models/sensitivity.py), summarised in [`results/sensitivity_slope.csv`](results/sensitivity_slope.csv).
 
 **The sensitivity is run on the 2021–2022 train pool, not on 2023.** 2023 is a locked evaluation set already spent once (§2.4); refitting it for a robustness check would spend it a second time.
 
@@ -179,7 +179,7 @@ Pitchers with fewer than 100 shadow-zone pitches in the data being fitted share 
 
 **Pairwise comparisons.** `P(Δ_A > Δ_B)` is counted directly from the joint posterior draws, which is the only way to answer "is A better than B" without pretending the two estimates are independent.
 
-**Separability.** On 2023: 27 of 102 catchers (26%) have intervals excluding zero; 27% of pairs are resolved at 95%. Restricting to catchers with ≥1,000 shadow-zone pitches raises these to 53% and 55%. On 2021–2022, P(rank 1 > rank 2) = 0.77.
+**Separability.** On 2023: 27 of 102 catchers (26%) have intervals excluding zero; in 27% of pairs, one catcher is ahead of the other with posterior probability above 0.95. Restricting to catchers with ≥1,000 shadow-zone pitches raises these to 53% and 55%. Neighbours in the ranking rarely separate: of the 101 adjacent pairs, 99 have P below 0.6, with a median of 0.52. The top two separate on 2023 (P = 0.98) but not on 2021–2022 (0.77).
 
 **Coverage at the extremes is lower than nominal.** Simulation shows coverage for the largest third of effects running 4 to 7 points below overall coverage, in every scenario including the unconfounded baseline — 89.0% against 94.7% there. The estimator is doing this, not the data: partial pooling buys its stability at the tails, which is where a leaderboard is read. The caterpillar plot carries the caveat as a caption.
 
@@ -210,7 +210,7 @@ Eight, in two groups. The first four manipulate data structure; the last four at
 | heavy_tail | Catcher effects from t(3), violating the normal prior |
 | omitted_covariate | A variable affecting calls, correlated with catcher, absent from the model; half the size of the catcher effect (swept in §6.4) |
 
-**`location_shared` is a deliberately preserved failure.** It looks like misspecification and is not: when locations are drawn independently of catcher, every catcher faces the same distribution, the interaction term averages to the constant `γ_c · E[centred]`, and a constant-intercept model recovers it exactly. The catcher-level spread in mean location is 0.017 under this scenario against 0.078 under `location_mix`. It is kept in the table as the control it turned out to be.
+**`location_shared` is a deliberately preserved failure.** It looks like misspecification and is not: when locations are drawn independently of catcher, every catcher faces the same distribution, the interaction term averages to the constant `γ_c · E[centred]`, where `centred = 2(p̂ − 0.5)` puts the baseline probability on a −1 to 1 scale, and a constant-intercept model recovers it exactly. The catcher-level spread in mean location is 0.017 under this scenario against 0.078 under `location_mix`. It is kept in the table as the control it turned out to be.
 
 Two further scenario designs failed before `omitted_covariate` worked, and the reason is the same each time: **the fitted model absorbed what was meant to break it.** A covariate defined at pitcher level is taken up whole by the pitcher random effect. Per-pitch noise is uncorrelated with catcher and merely adds unexplained variance. Only a covariate with a catcher-level component — with the truth defined to exclude that component — bites.
 
@@ -220,7 +220,7 @@ That last construction is close to tautological: removing from the truth somethi
 
 Bias, RMSE, 95% interval coverage, and rank recovery (Spearman against the true ordering), for both estimators, 100 replications per scenario. Monte Carlo error on coverage is ±1.1%.
 
-**Coverage is also reported stratified by effect magnitude.** Under heavy tails only one or two of thirty catchers are outliers, so missing both moves aggregate coverage by six points and disappears into the average. The failure is at the tail; the aggregate hides it.
+**Coverage is also reported stratified by effect magnitude.** Under heavy tails only one or two of thirty catchers are outliers. Missing both in every replication would cost aggregate coverage under seven points, and missing them only some of the time barely registers. The failure is at the tail; the aggregate hides it.
 
 ### 6.4 The confounding sweep
 
@@ -268,7 +268,7 @@ Recorded because each cost time and each would have produced a wrong number if i
 
 **`numpyro.set_host_device_count` is ignored once XLA has initialised.** Calling it per-fit means a later 4-chain run silently falls back to sequential execution with one warning on stderr and double the wall time. Device count must be set through `XLA_FLAGS` before JAX is imported.
 
-**Effects estimated relative to zero and effects estimated relative to the league mean differ by a constant**, which appears in a simulation as a small bias identical across every scenario. Five structurally different scenarios returning the same bias to four decimal places is arithmetic, not a statistical property.
+**Effects estimated relative to zero and effects estimated relative to the league mean differ by a constant**, which appears in a simulation as a small bias identical across every scenario. Five structurally different scenarios returning nearly the same bias, +0.0029 to +0.0030, is arithmetic, not a statistical property.
 
 **arviz 1.3.0 is incompatible with numpyro 0.21.0**; `az.from_numpyro` fails inside `infer_dims`. Diagnostics here use `numpyro.diagnostics` directly.
 
@@ -280,4 +280,4 @@ See [`README.md`](README.md) for the command sequence. The v1 pipeline is unchan
 
 Seeds are fixed: `20260906` for splits and cross-fitting folds, replication index for simulation draws. Data files, model caches and simulation output are not version-controlled and regenerate from the commands given. Every published figure is also written to a version-controlled CSV under [`results/`](results/), so a reader can check a number without refitting anything.
 
-**Tests** ([`tests/`](tests/), 17 of them, about ten seconds, no downloads) cover three things that fail silently rather than loudly: that cross-fitting folds and the train/validation split never divide a game, which is the whole point of out-of-sample baseline probabilities; that the per-draw Δ computation matches a hand calculation and assigns each catcher its own effect, since a misalignment there would hand every catcher someone else's number without raising an error; and that NUTS recovers known parameters on synthetic data with a fixed seed, which is the only check that would catch the v2 model itself being changed — a centred parameterisation, a wrong prior, a mis-wired `logit_base`. Continuous integration runs them on every push.
+**Tests** ([`tests/`](tests/), 17 in all, about ten seconds, no downloads). Eight are v1's: data cleaning and labels, the standardization and Spearman–Brown formulas, and whether mixed-model effects land on the right groups. The nine for v2 cover three things that fail silently rather than loudly: that cross-fitting folds and the train/validation split never divide a game, which is the whole point of out-of-sample baseline probabilities; that the per-draw Δ computation matches a hand calculation and assigns each catcher its own effect, since a misalignment there would hand every catcher someone else's number without raising an error; and that NUTS recovers known parameters on synthetic data with a fixed seed, which is the only check that would catch the v2 model itself being changed — a centred parameterisation, a wrong prior, a mis-wired `logit_base`. Continuous integration runs them on every push.

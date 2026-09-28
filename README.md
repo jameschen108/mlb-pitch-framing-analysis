@@ -10,7 +10,7 @@ Some catchers get more strike calls than others on identical pitches. The first 
 
 This version asks a different question: do those numbers support the things the first version said about them?
 
-Two of them do not, and the reason is the same in both cases — every number in the first version was a point estimate, with no interval attached and nothing checking whether the estimator deserved to be believed.
+The variance-component ordering does not, and the leaderboard only partly does. Both fall short for the same reason: every number in the first version was a point estimate with no interval attached, and its one synthetic-data check tested whether effects landed on the right groups, not whether the estimator deserved to be believed. The correlation holds up, but shows less than it seems to.
 
 ---
 
@@ -21,8 +21,8 @@ The original analysis is unchanged and still reachable at tag [`v1.0`](../../tre
 | Claim in v1 | Verdict |
 |---|---|
 | Umpire-to-umpire variation exceeds catcher-to-catcher variation (τ 0.233 vs 0.192) | **Not supported.** Reproduces on 2023 at P = 0.81, but flips between seasons, moves with the shadow-zone threshold, and never reaches a level worth stating as fact |
-| The leaderboard separates catchers | **Partly.** 23 of 63 qualified catchers have intervals excluding zero; most adjacent ranks are coin flips |
-| r = 0.990 against Savant shows the location model is sound | **Yes, but it shows less than it appears to** — the correlation cannot see interval calibration, where the two estimators differ most, and barely moves between their point estimates |
+| Its leaderboard ranks catchers, on point values alone | **Partly.** 23 of 63 qualified catchers have intervals excluding zero; most adjacent ranks are coin flips |
+| r = 0.990 against Savant shows the location model is sound | **True, but the correlation is not what shows it.** Section 2 does. Part of the 0.990 was in-sample fitting, and the correlation cannot see interval calibration, where the two estimators differ most |
 | The variational fit that produced all of this had not converged | **Harmless.** Refit with NUTS on the same 2022 data, per-catcher effects correlate with the VB fit at r = 0.9999 |
 
 The last row was the reason I started this round. It turned out to be the one thing that was fine.
@@ -75,7 +75,7 @@ Same model form as v1 — a tensor spline over `plate_x` × standardized `plate_
 
 The gap is nothing. With 410 basis functions against 550,000 rows and a penalty term, there was no room to overfit. v1 reporting in-sample fit statistics was a methodological flaw that did not distort any of its numbers — with one exception, in section 3.
 
-Calibration is a different story. Out-of-fold, the model over-predicts strikes below p̂ = 0.5 and under-predicts above it, by one to two points across the shadow zone. That S-shape is real — it is monotone across six bins on 100,000 held-out pitches — but recalibrating it moves the leaderboard by 0.32 runs from end to end, against a spread of 28.5. Real, and not worth acting on.
+Calibration is a different story. Out-of-fold, the model over-predicts strikes below p̂ = 0.5 and under-predicts above it, by 0.7 to 1.6 points across the shadow zone. That S-shape is real — all three bins below 0.5 over-predict and all three above under-predict, on 100,000 held-out pitches — but recalibrating it shifts per-catcher runs by amounts spanning 0.32 runs, against a spread of 31.5 runs across the same 84 catchers. Real, and not worth acting on.
 
 ### 3. What r = 0.990 does and does not show
 
@@ -106,17 +106,17 @@ The model is v1's: the baseline logit enters as a calibration covariate, three c
 
 That covariate's coefficient is estimated, not fixed — so it is not an *offset*, which is a term whose coefficient is held at 1 by construction. Fit freely it lands at **1.089, 95% interval [1.071, 1.107]**, which excludes 1 outright. The freedom earns its keep, absorbing the slope part of the calibration S-shape in section 2 before the random effects see the residual.
 
-Pinning it back to 1 and refitting changes the wording and nothing else. Per-catcher runs correlate at r = 0.9997, the largest single-catcher shift is 0.40 runs against a spread of 28.9, the top ten are the same ten, and P(τ_umpire > τ_catcher) moves from 0.4635 to 0.4615. The assumption was false and the estimator did not depend on it — which is the useful version of this finding, and a duller one than if the leaderboard had moved. Run on the train pool rather than on 2023, which has been spent ([`models/sensitivity.py`](models/sensitivity.py), [`results/sensitivity_slope.csv`](results/sensitivity_slope.csv)).
+Pinning it back to 1 and refitting changes the wording and nothing else. Per-catcher runs correlate at r = 0.9997, the largest single-catcher shift is 0.40 runs against a spread of 28.9, the top ten are the same ten, and P(τ_umpire > τ_catcher) stays at 0.46. The assumption was false and the estimator did not depend on it — which is the useful version of this finding, and a duller one than if the leaderboard had moved. Run on the train pool rather than on 2023, which has been spent ([`models/sensitivity.py`](models/sensitivity.py), [`results/sensitivity_slope.csv`](results/sensitivity_slope.csv)).
 
 The engine swap changes nothing and was never going to. On identical data (2022, shadow zone) the two engines agree on per-catcher effects at r = 0.9999, and variational Bayes understates the posterior standard deviation by 5%. What NUTS adds is the joint posterior. The VB fit is mean-field: it gives each parameter its own mean and spread and treats them as independent, which drops the correlations that a probability like the one below depends on.
 
 2023, the season v1 reported:
 
-| | posterior mean | 89% interval |
+| | posterior mean | 95% interval |
 |---|--:|---|
-| τ catcher | 0.2001 | [0.169, 0.237] |
-| τ umpire | 0.2264 | [0.196, 0.261] |
-| τ pitcher | 0.2019 | [0.168, 0.237] |
+| τ catcher | 0.2001 | [0.163, 0.247] |
+| τ umpire | 0.2264 | [0.190, 0.270] |
+| τ pitcher | 0.2019 | [0.162, 0.245] |
 
 P(τ_umpire > τ_catcher) = 0.81.
 
@@ -141,7 +141,7 @@ The shadow-zone threshold moves it as well. On the pooled train pool, P(τ_umpir
 
 Grey intervals cover zero; blue ones do not. 2023:
 
-| Restriction | Catchers | Intervals excluding zero | Pairs resolved at 95% |
+| Restriction | Catchers | Intervals excluding zero | Pairs ordered with ≥95% probability |
 |---|--:|--:|--:|
 | All | 102 | 27 (26%) | 27% |
 | ≥500 shadow pitches | 49 | 20 (41%) | 47% |
@@ -149,7 +149,7 @@ Grey intervals cover zero; blue ones do not. 2023:
 
 Among the 63 catchers Savant lists as qualified, 23 have intervals excluding zero.
 
-The ends of the distribution separate cleanly from zero. The middle does not, and most adjacent pairs are indistinguishable. On 2021–2022, where the top two are closer together, P(rank 1 beats rank 2) = 0.77.
+The ends of the distribution separate cleanly from zero. The middle does not, and neighbours in the ranking are mostly indistinguishable: of the 101 adjacent pairs, 99 have P(higher > lower) below 0.6, with a median of 0.52. Even among the 15 catchers with at least 1,000 shadow pitches the median is 0.62. The very top of 2023 is the exception, with Hedges ahead of Álvarez at P = 0.98; on 2021–2022 the top two are not separable, at 0.77.
 
 The working plan set this down as an acceptable outcome before the figure existed, together with a commitment to report all three shadow-zone thresholds. That plan was private, so when it was written cannot be verified from outside. What can be checked is whether the reported band turned out to be the convenient one.
 
@@ -193,7 +193,7 @@ The two estimators, run on identical pitches, put side by side against the two e
 | vs Savant, 2021 (59 catchers) | 0.892 | 0.914 | [−0.068, +0.014] |
 | vs Savant, 2022 (60 catchers) | 0.952 | 0.961 | [−0.027, +0.009] |
 
-Every interval covers zero. Paired bootstrap over catchers, 8,000 resamples, signed the same way in all three rows so that each interval contains its own row's gap ([`models/validate.py`](models/validate.py), reproduced in [`results/external_checks.csv`](results/external_checks.csv)).
+Every interval covers zero. Paired bootstrap over catchers, 8,000 resamples ([`models/validate.py`](models/validate.py), reproduced in [`results/external_checks.csv`](results/external_checks.csv)).
 
 Simulation separates the two estimators clearly on intervals, 74% coverage against 93%, and more modestly on point estimates. The external checks see only point estimates, and on those they do not separate the estimators either way. Two of them are too imprecise to: the year-over-year interval is about ±0.05 wide and the 2021 Savant interval ±0.04. The 2022 Savant interval, at ±0.02, is tight enough to catch a real gap, and its point estimate slightly favours the unadjusted estimator.
 
@@ -215,7 +215,7 @@ Pooling 2021–2023 gives steadier per-catcher numbers — Jose Trevino leads at
   <em>The strongest framers stay above zero all three years; the weakest stay below.</em>
 </p>
 
-Refitting the hierarchical model on all 1.04M modelling rows, with effects shared across seasons, gave v1 its most stable per-catcher estimate; the three variance components converge there to τ ≈ 0.18–0.19, with umpire still nominally the largest. Section 4 is what those three numbers look like once they carry intervals.
+Refitting the hierarchical model on all 1.04M modelling rows, with effects shared across seasons, gave v1 its most stable per-catcher estimate; the three variance components converge there to τ ≈ 0.18–0.19, with umpire still nominally the largest. Section 4 reports the same three components with intervals, fit on 2023 and on 2021–2022 rather than on all three seasons pooled.
 
 ---
 
@@ -243,13 +243,13 @@ The names at both ends are v1's names. Hedges, Álvarez and Bailey led v1's 2023
 
 I started this round for the wrong reason. The thing that bothered me about v1 was that its hierarchical model was fit by variational Bayes and had not converged. That turned out to be the one thing that was fine. The real gap — no intervals anywhere, and no check that the estimator deserved belief — was sitting in plain sight and I had ranked it second.
 
-I read noise as signal more than once. A single 971-game validation split produced a shadow-zone bias significant at p ≈ 0.03; five-fold cross-fitting over all 4,856 games showed it was nothing, and I had been within an hour of rewriting the calibration pipeline around it. A scenario that looked like it degraded coverage at 10 replications was at nominal at 100. Both times the number pointed where I already wanted to go.
+I read noise as signal more than once. A single 971-game validation split produced a shadow-zone bias significant at p ≈ 0.03; five-fold cross-fitting over all 4,856 games showed it was nothing, and I had been about to rewrite the calibration pipeline around it. A scenario that looked like it degraded coverage at 10 replications was at nominal at 100. Both times the number pointed where I already wanted to go.
 
-Three of my simulation scenarios tested nothing. A location-varying catcher effect collapses to a constant when every catcher faces the same distribution of locations. An omitted covariate defined at the pitcher level is absorbed whole by the pitcher random effect. The lesson, arrived at the slow way: before writing a generator, work out how the fitted model will absorb what you are about to generate.
+Three of my simulation designs tested nothing. A location-varying catcher effect collapses to a constant when every catcher faces the same distribution of locations; that one stays in the eight as a control. An omitted covariate defined at the pitcher level is absorbed whole by the pitcher random effect, and one drawn fresh for every pitch is unrelated to the catcher and only adds noise. The lesson, arrived at the slow way: before writing a generator, work out how the fitted model will absorb what you are about to generate.
 
 Timing a JAX program without blocking measures dispatch, not compute. The first timings said a 4-chain run finished in two seconds.
 
-Each of these is in the working log with the date and the wrong turn intact.
+I kept a dated working log through this round, wrong turns included. It is not published; the technical lessons are in METHODS §8.
 
 What I would add next: the ABS challenge era. 2026 was excluded here because the generating process changed, but "what happens to a framing number when the rules change underneath it" is a better question than anything in this document.
 
@@ -260,7 +260,7 @@ What I would add next: the ABS challenge era. 2026 was excluded here because the
 | Stage | What | Module |
 |---|---|---|
 | Data pipeline | Monthly Statcast fetch, cleaning, standardization | [`data/fetch.py`](data/fetch.py) |
-| Split | Train/validation by `game_pk`, 2023 holdout | [`models/splits.py`](models/splits.py) |
+| Split | Train/validation by `game_pk`, 2023 locked | [`models/splits.py`](models/splits.py) |
 | Baseline | Logistic GAM, fit on train, scored out of sample | [`models/baseline_v2.py`](models/baseline_v2.py) |
 | Cross-fitting | Out-of-fold baseline probabilities for the train pool | [`models/crossfit.py`](models/crossfit.py) |
 | Hierarchical model | Crossed random effects, NUTS on the shadow zone | [`models/hierarchical_v2.py`](models/hierarchical_v2.py) |
@@ -269,7 +269,7 @@ What I would add next: the ABS challenge era. 2026 was excluded here because the
 | Simulation | Eight scenarios, two estimators, four metrics | [`sim/`](sim/) |
 | External validation | Year over year, Savant comparison | [`models/validate.py`](models/validate.py) |
 | Slope sensitivity | Estimated `b` vs `b` fixed at 1, on the train pool | [`models/sensitivity.py`](models/sensitivity.py) |
-| Holdout | 2023, spent once | [`models/holdout.py`](models/holdout.py) |
+| Locked evaluation | 2023, spent once | [`models/holdout.py`](models/holdout.py) |
 
 v1's modules (`baseline_gam.py`, `framing_runs.py`, `hierarchical.py`, `reliability.py`, notebooks 01–06) are unchanged and still run.
 
@@ -285,7 +285,7 @@ Numbers not in these files are printed by the module that produces them: the sin
 | [`leaderboard_2021_2022_train.csv`](results/leaderboard_2021_2022_train.csv) | the same for the pooled 2021–2022 fit, 148 catchers |
 | [`leaderboard_v1_pooled_2021_2023.csv`](results/leaderboard_v1_pooled_2021_2023.csv) | v1's three-season VB leaderboard (section 8) |
 | [`variance_components.csv`](results/variance_components.csv) | section 4's τ table and P(τ_umpire > τ_catcher) |
-| [`separability.csv`](results/separability.csv) | section 5's three minimum-pitch cutoffs (0, 500, 1,000), both fits |
+| [`separability.csv`](results/separability.csv) | section 5's three minimum-pitch cutoffs (0, 500, 1,000), both fits, with the adjacent-rank probabilities |
 | [`external_checks.csv`](results/external_checks.csv) | section 7's correlations and bootstrap intervals |
 | [`sim_coverage.csv`](results/sim_coverage.csv) | section 6's eight scenarios × two estimators |
 | [`sim_confound_sweep.csv`](results/sim_confound_sweep.csv) | the confounder-strength sweep |
@@ -318,7 +318,7 @@ uv run python -m sim.run sweep 50
 # four fits on the train pool (~30–40 min)
 uv run python -m models.sensitivity
 
-# external validation, then the holdout
+# external validation, then 2023 (spent once)
 uv run python -m models.validate
 uv run python -m models.holdout
 
@@ -342,7 +342,7 @@ models/
   framing_runs.py      v1 unadjusted residual framing runs
   hierarchical.py      v1 two-stage crossed random-effects model (VB)
   reliability.py       split-half and year-over-year reliability
-  splits.py            train/validation by game, 2023 holdout
+  splits.py            train/validation by game, 2023 locked
   baseline_v2.py       baseline fit on train, scored out of sample
   crossfit.py          out-of-fold baseline probabilities
   hierarchical_v2.py   crossed random effects, NUTS on the shadow zone
@@ -370,10 +370,10 @@ docs/images/           en/ and zh/ figures used by the two READMEs
 - Simulation used 30 catchers and ~500 pitches each. Coverage figures are not exact for full-season sample sizes.
 - Pitch type, velocity, movement, batter identity and ballpark remain unmodelled. Savant adjusts for park; this does not. Pitchers enter as a random effect, but low-volume pitchers share a single pooled effect (see below).
 - The count enters the baseline additively, shifting the zone without reshaping it. The reshaping effect is real, and shown by fitting each count separately, but it is not in the model that generates the framing numbers.
-- Pitches beyond |plate_x| > 2.5 ft, or outside a standardized height of [−1, 2], are dropped before modelling to keep the spline from extrapolating: about 2% of pitches, of which exactly 1 of 7,386 in 2023 was a called strike. They carry essentially no framing signal.
+- Pitches with |plate_x| > 2.5 ft, or outside a standardized height of [−1, 2], are dropped before modelling to keep the spline from extrapolating: about 2% of pitches, of which exactly 1 of 7,386 in 2023 was a called strike. They carry essentially no framing signal.
 - Pitchers with fewer than 100 shadow-zone pitches in the data being fitted share a single pooled effect: 749 of 1,123 pitchers (25% of pitches) in the 2021–2022 fit, 669 of 835 (48%) in 2023. Their individual effects would be heavily shrunk anyway, but for those pitches the model makes no pitcher-specific adjustment. (v1 pooled below 100 called pitches per season, 150 in its three-season fit.)
 - Run value is a flat 0.125 runs per stolen strike, as in v1. The real value depends on the count — a strike stolen with two strikes already on the batter is worth far more than one stolen on 0-0 — so per-catcher totals are approximate. A count-dependent value would leave the variance components, the separability figures and P(τ_umpire > τ_catcher) unchanged, since they are on the probability scale, but it could reorder the run leaderboard, because catchers see different mixes of counts. That has not been checked.
-- The holdout discipline cost something: with 2023 reserved, year-over-year stability rests on a single season pair, so there is no decay curve.
+- The holdout discipline cost something: with 2023 reserved, year-over-year stability rests on a single season pair, so this round has no decay curve. The one in section 8 is v1's.
 - The baseline model is mildly miscalibrated in the shadow zone (section 2). Correcting it moves the leaderboard by about 1% of its spread.
 
 ## References
@@ -390,4 +390,4 @@ Python 3.12 · polars · pandas · pybaseball · pyGAM · statsmodels · numpyro
 
 ## License
 
-[MIT](LICENSE). Statcast data is retrieved from Baseball Savant and is subject to MLB's terms; none of it is redistributed here.
+[MIT](LICENSE). Statcast data is retrieved from Baseball Savant and is subject to MLB's terms. No pitch-level data is redistributed here; the CSVs in `results/` include Savant's published framing runs for comparison.

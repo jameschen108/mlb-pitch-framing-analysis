@@ -28,7 +28,7 @@ from models.intervals import RUN_VALUE, leaderboard, separability
 RESULTS_DIR = Path(__file__).resolve().parent / "results"
 SIM_DIR = Path(__file__).resolve().parent / "sim" / "results"
 THRESHOLDS = (0, 500, 1000)
-ETI = (5.5, 94.5)          # 89% 等尾區間，與 README §4 同一個慣例
+ETI = (2.5, 97.5)          # 95% 等尾區間，與全文其他區間一致
 
 _missing: list[str] = []
 
@@ -95,7 +95,7 @@ def _leaderboard_csv(post: dict, names: pl.DataFrame, savant_season: int | None)
 # ---- 變異成分 ----
 
 def _variance_components(fits: dict[str, dict]) -> pl.DataFrame:
-    """τ 的後驗平均與 89% 區間，外加 P(τ_umpire > τ_catcher)。
+    """τ 的後驗平均與 95% 區間，外加 P(τ_umpire > τ_catcher)。
 
     v1 的 README 拿 τ 的點值直接比大小；這張表的存在就是為了讓那個比較看得到區間。
     """
@@ -109,7 +109,7 @@ def _variance_components(fits: dict[str, dict]) -> pl.DataFrame:
                 "tau_mean": float(v.mean()), "tau_sd": float(v.std()),
                 "tau_eti_lo": float(np.percentile(v, ETI[0])),
                 "tau_eti_hi": float(np.percentile(v, ETI[1])),
-                "eti_mass": 0.89,
+                "eti_mass": 0.95,
                 "p_umpire_gt_catcher": float(
                     (np.asarray(tau["umpire"]) > np.asarray(tau["catcher"])).mean()
                 ) if group == "catcher" else None,
@@ -134,6 +134,9 @@ def _separability(fits: dict[str, dict]) -> pl.DataFrame:
                 "share_pairs_resolved": sp["pairs_resolved_95"] / sp["pairs_total"],
                 "p_rank1_gt_rank2": sp["rank1_vs_rank2_p"],
                 "p_rank1_gt_rank10": sp["rank1_vs_rank10_p"],
+                "adjacent_pairs": sp["n_catchers"] - 1,
+                "adjacent_p_below_0_6": sp["adjacent_below_0_6"],
+                "adjacent_p_median": sp["adjacent_p_median"],
             })
     return pl.DataFrame(rows)
 

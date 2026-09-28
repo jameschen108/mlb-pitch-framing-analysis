@@ -130,6 +130,7 @@ def separability(post: dict, min_pitches: int = 0) -> dict:
     n = d.shape[1]
     pm = (d[:, :, None] > d[:, None, :]).mean(0)
     iu = np.triu_indices(n, 1)
+    adjacent = np.diag(pm, 1)                  # P(第 k 名 > 第 k+1 名)
     return {
         "n_catchers": n,
         "nonzero_95": int(((lb["delta_lo"] > 0) | (lb["delta_hi"] < 0)).sum()),
@@ -138,6 +139,8 @@ def separability(post: dict, min_pitches: int = 0) -> dict:
         "top5_vs_rest_min_p": float(pm[:5, 5:].min()),
         "rank1_vs_rank2_p": float(pm[0, 1]),
         "rank1_vs_rank10_p": float(pm[0, min(9, n - 1)]),
+        "adjacent_below_0_6": int((adjacent < 0.6).sum()),
+        "adjacent_p_median": float(np.median(adjacent)),
     }
 
 

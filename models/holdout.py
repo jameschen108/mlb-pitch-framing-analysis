@@ -117,7 +117,7 @@ if __name__ == "__main__":
     print(f"v1（VB、全量、in-sample、無區間）：catcher 0.192  umpire 0.233  → 宣稱主審較大")
     print(f"v2（NUTS、shadow zone、樣本外基準）：")
     for g, v in (("catcher", tc), ("umpire", tu), ("pitcher", tp)):
-        print(f"    tau_{g:8s} {v.mean():.4f}   89% ETI [{np.percentile(v,5.5):.4f}, {np.percentile(v,94.5):.4f}]")
+        print(f"    tau_{g:8s} {v.mean():.4f}   95% ETI [{np.percentile(v,2.5):.4f}, {np.percentile(v,97.5):.4f}]")
     print(f"    P(tau_umpire > tau_catcher) = {(tu > tc).mean():.3f}")
 
     lb = leaderboard(post)

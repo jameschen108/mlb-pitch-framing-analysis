@@ -97,8 +97,8 @@ def summary(res: dict) -> pl.DataFrame:
         }
         for g, v in r["tau"].items():
             row[f"tau_{g}"] = float(v.mean())
-            row[f"tau_{g}_lo"] = float(np.percentile(v, 5.5))
-            row[f"tau_{g}_hi"] = float(np.percentile(v, 94.5))
+            row[f"tau_{g}_lo"] = float(np.percentile(v, 2.5))
+            row[f"tau_{g}_hi"] = float(np.percentile(v, 97.5))
         row["p_umpire_gt_catcher"] = float(
             (r["tau"]["umpire"] > r["tau"]["catcher"]).mean()
         )
