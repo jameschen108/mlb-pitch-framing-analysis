@@ -26,6 +26,7 @@ v2 定案之後才抓的兩季，走完全相同的路：train-only 基準、同
     uv run python -m models.holdout                  # 2023
     uv run python -m models.holdout --season 2024
     uv run python -m models.holdout --transport      # 基準模型在各季的 log loss
+    uv run python -m models.holdout --drift          # 2025 對 Savant 掉下去的原因
 """
 
 from __future__ import annotations
@@ -45,6 +46,7 @@ SEASON = 2023
 NEW_SEASONS = (2024, 2025)
 HOLDOUT_SEASONS = (SEASON, *NEW_SEASONS)
 TRANSPORT_PATH = ARTIFACT_DIR / "baseline_transport.parquet"
+DRIFT_PATH = ARTIFACT_DIR / "baseline_drift.parquet"
 
 
 def cache_path(season: int = SEASON) -> Path:
@@ -165,11 +167,84 @@ def baseline_transport(force: bool = False) -> pl.DataFrame:
     return out
 
 
+def _edges(x: np.ndarray, y: np.ndarray, step: float = 0.05, min_n: int = 150) -> list[float]:
+    """把 x 分箱，回傳好球率跨過 0.5 的位置（相鄰兩箱線性內插），由小到大。"""
+    df = (pl.DataFrame({"b": np.floor(x / step) * step, "y": y})
+          .group_by("b").agg(r=pl.col("y").mean(), n=pl.len())
+          .filter(pl.col("n") > min_n).sort("b"))
+    b, r = df["b"].to_numpy() + step / 2, df["r"].to_numpy()
+    idx = np.where(np.diff(np.sign(r - 0.5)) != 0)[0]
+    return [float(b[i] + (0.5 - r[i]) * (b[i + 1] - b[i]) / (r[i + 1] - r[i])) for i in idx]
+
+
+def baseline_drift(force: bool = False) -> pl.DataFrame:
+    """2025 的未調整估計式對 Savant 為什麼掉到 0.65。看到那個結果之後才加的檢查。
+
+    兩組欄位：
+    - 好球帶本身（2021–2025，原始英尺、不經標準化）：主審 50% 線的左右寬度，
+      以及上下緣；另外是 Statcast 的 sz_top 平均。
+    - 估計式（2023–2025，train-only 基準）：shadow zone 的平均殘差、未調整 runs 與
+      上場量的相關，以及在**當季** shadow zone 上做兩參數重新校準
+      （y ~ logit_base）之後，未調整估計式對 Savant 的相關。
+
+    residual runs 沒有截距。基準模型整體偏一邊時，偏差乘上球數，就變成一項跟上場量
+    成正比的東西；重新校準那一欄如果回升，原因就是這個，而不是球位組成。
+    """
+    if DRIFT_PATH.exists() and not force:
+        return pl.read_parquet(DRIFT_PATH)
+
+    from sklearn.linear_model import LogisticRegression
+
+    from data.official import fetch_official_framing
+
+    rows = []
+    for season in (2021, 2022, *HOLDOUT_SEASONS):
+        df = load_modeling_frame(season)
+        mid = df.filter(pl.col("plate_z_std").is_between(0.3, 0.7))
+        row = {"season": season, "sz_top_mean": float(df["sz_top"].mean())}
+        for stand in ("L", "R"):
+            m = mid.filter(pl.col("stand") == stand)
+            e = _edges(m["plate_x"].to_numpy(), m["is_strike"].to_numpy())
+            row[f"zone_width_{stand}"] = e[-1] - e[0]
+        center = df.filter(pl.col("plate_x").abs() < 0.5)
+        for edge, lo, hi in (("top", 2.9, 4.2), ("bottom", 0.8, 2.2)):
+            c = center.filter(pl.col("plate_z").is_between(lo, hi))
+            row[f"zone_{edge}"] = _edges(c["plate_z"].to_numpy(), c["is_strike"].to_numpy())[0]
+
+        if season in HOLDOUT_SEASONS:
+            sf = holdout_frame(season)
+            y, p = sf["is_strike"].to_numpy(), sf["baseline_prob_oof"].to_numpy()
+            lb = sf["logit_base"].to_numpy()[:, None]
+            lr = LogisticRegression(C=np.inf).fit(lb, y)      # C=inf：不加懲罰
+            p_re = lr.predict_proba(lb)[:, 1]
+            t = (sf.with_columns(r=pl.Series(y - p), r_re=pl.Series(y - p_re))
+                 .group_by("fielder_2").agg(n=pl.len(), r=pl.col("r").mean(), r_re=pl.col("r_re").mean())
+                 .rename({"fielder_2": "catcher"})
+                 .join(fetch_official_framing(season).rename({"id": "catcher"}), on="catcher"))
+            n, sv = t["n"].to_numpy(), t["rv_tot"].to_numpy()
+            runs, runs_re = t["r"].to_numpy() * n * RUN_VALUE, t["r_re"].to_numpy() * n * RUN_VALUE
+            row |= {
+                "shadow_mean_resid": float((y - p).mean()),
+                "recal_intercept": float(lr.intercept_[0]), "recal_slope": float(lr.coef_[0, 0]),
+                "n_catchers_savant": t.height,
+                "corr_resid_runs_vs_pitches": float(np.corrcoef(runs, n)[0, 1]),
+                "corr_savant_vs_pitches": float(np.corrcoef(sv, n)[0, 1]),
+                "savant_r_resid": float(np.corrcoef(runs, sv)[0, 1]),
+                "savant_r_resid_recalibrated": float(np.corrcoef(runs_re, sv)[0, 1]),
+            }
+        rows.append(row)
+    out = pl.DataFrame(rows)
+    ARTIFACT_DIR.mkdir(parents=True, exist_ok=True)
+    out.write_parquet(DRIFT_PATH)
+    return out
+
+
 def _parse_args():
     import argparse
     p = argparse.ArgumentParser(description="holdout 球季的後驗與基準模型檢查")
     p.add_argument("--season", type=int, default=SEASON, choices=HOLDOUT_SEASONS)
     p.add_argument("--transport", action="store_true", help="只印基準模型在各季的 log loss")
+    p.add_argument("--drift", action="store_true", help="只印好球帶漂移與 2025 的診斷")
     return p.parse_args()
 
 
@@ -179,9 +254,9 @@ if __name__ == "__main__":
     from models.intervals import leaderboard, separability
 
     args = _parse_args()
-    if args.transport:
-        pl.Config.set_tbl_cols(-1); pl.Config.set_tbl_width_chars(200)
-        print(baseline_transport())
+    if args.transport or args.drift:
+        pl.Config.set_tbl_cols(-1); pl.Config.set_tbl_width_chars(250)
+        print(baseline_transport() if args.transport else baseline_drift())
         raise SystemExit
 
     season = args.season

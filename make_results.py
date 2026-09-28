@@ -210,6 +210,13 @@ def _baseline_transport() -> pl.DataFrame | None:
     return pl.read_parquet(TRANSPORT_PATH)
 
 
+def _baseline_drift() -> pl.DataFrame | None:
+    from models.holdout import DRIFT_PATH
+    if _need(DRIFT_PATH, "uv run python -m models.holdout --drift") is None:
+        return None
+    return pl.read_parquet(DRIFT_PATH)
+
+
 # ---- 模擬 ----
 
 def _sim_table(path: Path, by: list[str]) -> pl.DataFrame:
@@ -323,6 +330,7 @@ def main() -> None:
     write("year_over_year", stab)
     write("vs_savant_by_season", sav)
     write("baseline_transport", _baseline_transport())
+    write("baseline_drift", _baseline_drift())
 
     sens, sens_diff = _sensitivity()
     write("sensitivity_slope", sens)
