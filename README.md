@@ -95,9 +95,9 @@ The out-of-sample baseline was fit on 2021–2022, and it overpredicts 2023's ov
 
 Restricting to the shadow zone then costs 0.029, and switching from the unadjusted estimator to the hierarchical one costs another 0.018. The hierarchical model estimates its own intercept in every fit, so the like-for-like comparison is with the corrected unadjusted estimator. Against the uncorrected one (0.936), the switch would seem to add 0.006.
 
-The last step is the important one. Section 6 shows how the two estimators differ. The biggest difference is in their intervals: under confounding, the unadjusted estimator's nominal 95% intervals cover as little as 74% of the time, while the hierarchical model's stay between 92.9% and 95.6%. A correlation between point estimates cannot detect that. The point estimates differ less. Under confounding, the hierarchical model's RMSE is about 40% lower and its rank correlation with the true effects is 0.04 to 0.05 higher. Against Savant, the switch moves the correlation by 0.018, in the opposite direction.
+The last step is the important one. Section 6 shows how the two estimators differ. The biggest difference is in their intervals: under confounding, the unadjusted estimator's nominal 95% intervals cover as little as 74% of the time, while the hierarchical model's stay between 92.9% and 95.6%. A correlation between point estimates cannot detect that. The point estimates differ less. Under confounding, the hierarchical model's RMSE is about 40% lower and its rank correlation with the true effects is 0.04 to 0.05 higher. Against Savant, the switch moves the correlation by 0.018 the other way, which is within the noise of this check: the paired interval on 2023 is about ±0.026 wide.
 
-So the correlation is not evidence that an estimator is sound. One intercept moves it by 0.031. The choice of estimator moves it by less, and against what the simulation shows. v1's README already said the agreement was not independent confirmation, since it reflects a shared method. On this evidence, what fitting in-sample adds to it is mostly the season's overall strike rate, which Savant, presumably fitting within season, also has right.
+So the correlation is not evidence that an estimator is sound. One intercept moves it by 0.031. The choice of estimator moves it by less, and by an amount the check cannot distinguish from zero. v1's README already said the agreement was not independent confirmation, since it reflects a shared method. On this evidence, what fitting in-sample adds to it is mostly the season's overall strike rate, which Savant, presumably fitting within season, also has right.
 
 <p align="center">
   <img src="docs/images/en/framing_vs_official_2023.png" width="440">
@@ -206,7 +206,7 @@ The two estimators, run on identical pitches, compared on the two external check
 | vs Savant, 2024 (58) | 0.942 | 0.917 | [−0.003, +0.055] |
 | vs Savant, 2025 (57) | 0.955 | 0.647 | [+0.208, +0.427] |
 
-Every interval but the last covers zero, and so do the six pairs of seasons more than a year apart. The intervals come from a paired bootstrap over catchers with 8,000 resamples ([`models/validate.py`](models/validate.py), reproduced in [`results/external_checks.csv`](results/external_checks.csv), [`results/year_over_year.csv`](results/year_over_year.csv) and [`results/vs_savant_by_season.csv`](results/vs_savant_by_season.csv)). The 2021 and 2022 estimates use cross-fitted out-of-fold baselines; 2023–2025 use the model fit on the 2021–2022 training split.
+Every interval but the last covers zero, and so do the six pairs of seasons more than a year apart. The intervals come from a paired bootstrap over catchers with 8,000 resamples ([`models/validate.py`](models/validate.py), reproduced in [`results/year_over_year.csv`](results/year_over_year.csv) and [`results/vs_savant_by_season.csv`](results/vs_savant_by_season.csv)). The 2021 and 2022 estimates use cross-fitted out-of-fold baselines; 2023–2025 use the model fit on the 2021–2022 training split.
 
 The simulation separates the two estimators clearly on intervals (74% coverage against 93%) and more modestly on point estimates. The external checks only see point estimates. In the first eight rows they do not favor either estimator, and most could not have shown a gap anyway: the year-over-year intervals run from ±0.05 to ±0.09, and the 2021 Savant interval is ±0.04. The Savant intervals for 2022–2024, at ±0.02 to ±0.03, are tight enough to catch a real gap. 2022 leans slightly toward the unadjusted estimator, 2023 and 2024 slightly toward the hierarchical one.
 
@@ -319,7 +319,7 @@ Numbers not in these files are printed by the module that produces them: the 202
 | [`variance_components.csv`](results/variance_components.csv) | section 4's τ table and P(τ_umpire > τ_catcher), for 2023, 2024, 2025 and the pooled 2021–2022 fit |
 | [`separability.csv`](results/separability.csv) | section 5's three minimum-pitch cutoffs (0, 500, 1,000) for each of the four fits, with the adjacent-rank probabilities |
 | [`savant_decomposition.csv`](results/savant_decomposition.csv) | section 3's decomposition for 2023, 2024 and 2025: each pitch set and baseline correction, with the playing-time correlations |
-| [`external_checks.csv`](results/external_checks.csv) | section 7's correlations and bootstrap intervals |
+| [`external_checks.csv`](results/external_checks.csv) | the original three checks (2021 → 2022, Savant 2021 and 2022), also contained in the two files below |
 | [`year_over_year.csv`](results/year_over_year.csv) | section 7: every pair of seasons 2021–2025, both estimators, with the paired difference |
 | [`vs_savant_by_season.csv`](results/vs_savant_by_season.csv) | section 7: each season 2021–2025 against Savant |
 | [`baseline_transport.csv`](results/baseline_transport.csv) | sections 2 and 7: the train-only baseline on each later season, with log loss before and after re-estimating the intercept, and predicted against actual strike rate |
@@ -358,8 +358,7 @@ uv run python -m sim.run sweep 50
 # four fits on the train pool (~30–40 min)
 uv run python -m models.sensitivity
 
-# external validation, then 2023 (fit once)
-uv run python -m models.validate
+# 2023 (fit once)
 uv run python -m models.holdout
 
 # 2024–2025: pitches, umpires and Savant's leaderboard, then one fit per season
@@ -369,6 +368,9 @@ uv run python -m data.umpires 2024 2025
 uv run python -m data.official 2024 2025
 uv run python -m models.holdout --season 2024
 uv run python -m models.holdout --season 2025
+
+# external validation: every pair of seasons 2021–2025, and Savant by season
+uv run python -m models.validate
 
 # the train-only baseline on later seasons, and the checks on the 2025 row (section 7)
 uv run python -m models.holdout --transport
@@ -428,7 +430,7 @@ docs/images/           en/ and zh/ figures used by the two READMEs
 - Pitch type, velocity, movement, batter identity and ballpark are not modeled. Savant adjusts for park; this project does not. Pitchers enter as a random effect, but low-volume pitchers share a single pooled effect (see below).
 - The count enters the baseline additively, so it shifts the zone without reshaping it. The reshaping is real, and shown by fitting each count separately, but it is not in the model that produces the framing numbers.
 - Pitches with |plate_x| > 2.5 ft, or outside a standardized height of [−1, 2], are dropped before modeling to keep the spline from extrapolating: about 2% of pitches, of which exactly 1 of 7,386 in 2023 was a called strike. They carry essentially no framing signal.
-- Pitchers with fewer than 100 shadow-zone pitches in the data being fitted share a single pooled effect: 749 of 1,123 pitchers (25% of pitches) in the 2021–2022 fit, and 669 of 835 (48%) in 2023. Their individual effects would be heavily shrunk anyway, but for those pitches the model makes no pitcher-specific adjustment. (v1 pooled pitchers below 100 called pitches per season, and below 150 in its three-season fit.)
+- Pitchers with fewer than 100 shadow-zone pitches in the data being fitted share a single pooled effect: 749 of 1,123 pitchers (25% of pitches) in the 2021–2022 fit, and 47–49% of pitches in each of 2023, 2024 and 2025 (669 of 835 pitchers in 2023). Their individual effects would be heavily shrunk anyway, but for those pitches the model makes no pitcher-specific adjustment. (v1 pooled pitchers below 100 called pitches per season, and below 150 in its three-season fit.)
 - Run value is a flat 0.125 runs per stolen strike, as in v1. The real value depends on the count, and a strike stolen with two strikes already on the batter is worth far more than one stolen on 0-0, so per-catcher totals are approximate. A count-dependent value would leave the variance components, the separability figures and P(τ_umpire > τ_catcher) unchanged, since they are on the probability scale. It could reorder the run leaderboard, though, because catchers see different mixes of counts. That has not been checked.
 - Year-over-year stability now rests on ten season pairs (section 8), but each has only 30 to 48 catchers, and the shape of the decay depends on whether 2021 is included.
 - The baseline is fit once, on 2021–2022, and never refit. By 2025 it overpredicts the overall strike rate by 2.6 points (section 7). The hierarchical estimates absorb that through their intercept; the unadjusted ones do not.
