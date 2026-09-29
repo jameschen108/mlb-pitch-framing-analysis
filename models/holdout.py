@@ -1,4 +1,4 @@
-"""2023 holdout：只跑一次，在所有選模決定都定案之後。
+"""2023 holdout：階層模型只擬合一次，在所有選模決定都定案之後。
 
 紀律
 ----
@@ -25,7 +25,7 @@ v2 定案之後才抓的兩季，走完全相同的路：train-only 基準、同
 ----
     uv run python -m models.holdout                  # 2023
     uv run python -m models.holdout --season 2024
-    uv run python -m models.holdout --transport      # 基準模型在各季的 log loss
+    uv run python -m models.holdout --transport      # 基準模型在各季的 log loss 與校準
     uv run python -m models.holdout --drift          # 2025 對 Savant 掉下去的原因
     uv run python -m models.holdout --decompose      # 對 Savant 的相關，拆成截距與形狀
 """
@@ -138,9 +138,12 @@ def run(season: int = SEASON, force: bool = False, n_draws: int = 1000) -> dict:
 def baseline_transport(force: bool = False) -> pl.DataFrame:
     """train-only 基準模型搬到其他球季還準不準。
 
-    模型是在 2021–22 上擬合的。主審的好球帶若逐年漂移，會先在這裡看到：log loss 變差、
-    整體好球率的預測偏掉，shadow zone 的成員也跟著變。val 那一列是參考點——同一批
-    球季、模型沒看過的場次。
+    模型是在 2021–22 上擬合的。主審的好球帶若逐年漂移，整體好球率的預測會偏掉，
+    shadow zone 的成員也跟著變。val 那一列是參考點——同一批球季、模型沒看過的場次。
+
+    **不同列的 log loss 不能直接比。** 每一季的球組成不同，本來就有難易之分；2025 的
+    球比較好預測，剛好蓋掉了漂移的代價。要看 log loss 對漂移的反應，得在同一季裡比
+    修正前後：`*_intercept_recal` 欄是在該季重估一個截距之後的 log loss。
     """
     if TRANSPORT_PATH.exists() and not force:
         return pl.read_parquet(TRANSPORT_PATH)
@@ -152,13 +155,22 @@ def baseline_transport(force: bool = False) -> pl.DataFrame:
     frames = [("2021_2022_val", train_val()[1])]
     frames += [(str(s), load_modeling_frame(s)) for s in HOLDOUT_SEASONS]
     rows = []
+    from models.baseline_v2 import _log_loss
+
     for name, df in frames:
         p = gam.predict_proba(_matrix(df))
+        y = df["is_strike"].to_numpy().astype(float)
+        sh = (p > SHADOW_LO) & (p < SHADOW_HI)
+        q_all = _recalibrate(_logit(p), y, np.ones(len(y), bool), slope=False)[0]
+        q_sh = _recalibrate(_logit(p), y, sh, slope=False)[0]
         m = evaluate(gam, df)
         rows.append({
             "data": name, "n_called": m["n"],
             "log_loss": m["log_loss"], "brier": m["brier"],
             "log_loss_base_rate": m["log_loss_base_rate"],
+            "log_loss_intercept_recal": _log_loss(y, q_all),
+            "log_loss_shadow": _log_loss(y[sh], p[sh]),
+            "log_loss_shadow_intercept_recal": _log_loss(y[sh], q_sh[sh]),
             "strike_rate_actual": float(df["is_strike"].mean()),
             "strike_rate_predicted": float(p.mean()),
             "shadow_share": float(((p > SHADOW_LO) & (p < SHADOW_HI)).mean()),

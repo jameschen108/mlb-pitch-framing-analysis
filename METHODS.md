@@ -42,7 +42,7 @@ The whole measure rests on the residual `actual − predicted`. A baseline model
 
 The two schemes differ in form, but both are out of sample.
 
-On this measure, skipping the step matters less than it first appeared. On 2023, the same unadjusted estimator correlates with Savant at 0.990 using an in-sample baseline and 0.958 using an out-of-sample one. Re-estimating only the out-of-sample baseline's intercept on 2023 brings it to 0.989 ([`results/savant_decomposition.csv`](results/savant_decomposition.csv)). Flattened residuals therefore account for about 0.001 of the gap. The rest is the season's overall strike rate, which a baseline from other seasons does not have, and which residual runs, lacking an intercept, turn into a term proportional to playing time (README §3). Re-estimating one parameter on 2023 is itself in-sample, but a single intercept cannot overfit 350,000 pitches. The case for out-of-sample baselines rests on the argument at the top of this section, not on this number. Cross-fitting within 2021–2022 does not have the intercept problem, because every fold's model is fit on the same seasons it predicts; the train-only model applied to 2023–2025 does (§4.1).
+On this measure, skipping the step matters less than it first appeared. On 2023, the same unadjusted estimator correlates with Savant at 0.990 using an in-sample baseline and 0.958 using an out-of-sample one. Re-estimating only the out-of-sample baseline's intercept on 2023 brings it to 0.989 ([`results/savant_decomposition.csv`](results/savant_decomposition.csv)). So most of the gap is the season's overall strike rate, which a baseline from other seasons does not have, and which residual runs, lacking an intercept, turn into a term proportional to playing time (README §3). The remaining difference is small, but it is not a measurement of flattened residuals: the 0.990 and the 0.989 come from different pipelines. Re-estimating one parameter on 2023 is itself in-sample, but a single intercept cannot overfit 350,000 pitches. The case for out-of-sample baselines rests on the argument at the top of this section, not on this number. Cross-fitting within 2021–2022 does not have the intercept problem, because every fold's model is fit on the same seasons it predicts; the train-only model applied to 2023–2025 does (§4.1).
 
 ### 2.2 Splitting by game, not by pitch
 
@@ -60,13 +60,13 @@ The analysis is restricted to this band for two reasons, in order of importance.
 
 **Substantive**: framing can only operate where the call is in doubt. A pitch down the middle is a strike regardless of who catches it.
 
-**Statistical**: the discarded pitches carry almost no information. Fisher information about a catcher's effect scales with p(1−p), which is near zero at the extremes. Summing over 2023, with the band drawn by v1's in-sample baseline (the v2 baseline puts 15% of 2023 pitches in it):
+**Statistical**: the discarded pitches carry almost no information. Fisher information about a catcher's effect scales with p(1−p), which is near zero at the extremes. Summing over 2023, with the band drawn by v1's in-sample baseline (the v2 baseline puts 15% of 2023 pitches in it; [`results/shadow_information.csv`](results/shadow_information.csv)):
 
 | | Share of pitches | Share of information |
 |---|--:|--:|
 | Shadow zone (0.2–0.8) | 14.5% | **60.8%** |
 
-Across the 75 catchers with at least 1,000 called pitches, the standard error of the catcher effect grows by a factor of 1.27 on average, not the 2.6 that the raw pitch counts would suggest.
+Across the 75 catchers with at least 1,000 called pitches, the standard error of the catcher effect grows by a factor of 1.28 on average, not the 2.6 that the raw pitch counts would suggest.
 
 **Computational cost** is a third, weaker reason. At matched iteration counts, NUTS costs 11.4× more per iteration on a full season than on the shadow zone, which would put a full-data fit at roughly an hour. That is slow but feasible. What the restriction really buys is cheap refitting: a pooled two-season fit takes about seven minutes, and the threshold checks, the engine comparison and the simulation all need many fits.
 
@@ -86,7 +86,7 @@ The reported band is also not the convenient one. The narrowest intervals are at
 
 ### 2.4 Locking 2023
 
-2023 was locked for the whole of v2's development. Model form, shadow-zone threshold, inference engine, estimand and the list of reported quantities were all settled on 2021–2022. 2023 was used once, at the end, so the new figures could be set against v1's published 2023 table.
+2023 was locked for the whole of v2's development. Model form, shadow-zone threshold, inference engine, estimand and the list of reported quantities were all settled on 2021–2022. The hierarchical model was fit on 2023 once, at the end, so the new figures could be set against v1's published 2023 table.
 
 This is not a holdout in the strict sense. v1 had analyzed 2023 and published a leaderboard on it, and comparing against that table is the reason this round uses the season. So 2023 was never unseen: it was seen in v1, and v2's research question was shaped by what v1 found. What the lock does guarantee is that no v2 decision (the threshold, the engine, the estimand, the reported quantities) was tuned on 2023. It is a locked evaluation set for the v2 cycle, and calling it an untouched holdout would claim more than the design supports.
 
@@ -131,7 +131,7 @@ This shows up directly in the posterior. For each catcher with at least 300 shad
 
 The negative correlation is what partial non-identification looks like: within the posterior, credit for the same calls trades off between the catcher and his battery-mate. The model cannot tell whose it is, so it splits the difference and widens both intervals.
 
-So credit between catcher and pitcher is only partly separable. The model turns this into wider intervals rather than a biased estimate: in the battery scenario of section 6, where pairings are concentrated on purpose, the hierarchical intervals still cover 94%. What it cannot separate is anything about a pitcher that changes with the catcher he throws to. The pitcher term does not capture that, so it lands on the catcher. This is one reason the catcher term should be read as variation associated with the catcher under this specification, not as a measure of skill.
+So credit between catcher and pitcher is only partly separable. In the one battery scenario simulated (section 6), where pairings are concentrated on purpose, the hierarchical intervals still cover 94%, so at that strength the concentration shows up as wider intervals rather than lost coverage. That is one scenario at one strength with 30 catchers; it does not show that the estimate is unbiased under every pairing structure. What it cannot separate is anything about a pitcher that changes with the catcher he throws to. The pitcher term does not capture that, so it lands on the catcher. This is one reason the catcher term should be read as variation associated with the catcher under this specification, not as a measure of skill.
 
 ### 3.3 What shrinkage does and does not do
 
@@ -149,11 +149,11 @@ logit P(strike) = te(plate_x, plate_z_std) + f(stand) + f(p_throws) + f(balls) +
 
 Logistic GAM (pyGAM), tensor spline with 20 splines per margin. The model is judged on validation log loss, not accuracy or AUC. The framing metric is built on the predicted probabilities themselves, so calibration is what matters, and AUC is insensitive to it.
 
-In-sample and out-of-sample log loss differ by 0.002 (0.17346 vs 0.17149). With about 410 basis functions, 550,000 rows and a penalty term, there was no room to overfit, so v1's in-sample reporting was a methodological flaw that did not distort its fit statistics.
+In-sample and out-of-sample log loss differ by 0.002 (0.17346 vs 0.17149). With about 410 basis functions, 550,000 rows and a penalty term, this split shows no overall gap between in-sample and out-of-sample log loss, so v1's in-sample reporting was a methodological flaw that did not visibly inflate its fit statistics. That says nothing directly about v1's other estimates.
 
-Log loss has a blind spot, which the later seasons exposed. On 2023, 2024 and 2025 the train-only baseline scores 0.1691, 0.1695 and 0.1693, no worse than the validation split's 0.1715. Yet it overpredicts the overall strike rate by 0.8, 0.6 and 2.6 points; in 2025 it predicts 0.358 against an actual 0.332 ([`results/baseline_transport.csv`](results/baseline_transport.csv)). Log loss averages over every called pitch, most of them near p = 0 or 1, where a shift in the intercept changes little; the shadow zone, where it matters, is 15% of pitches. The 2025 shift traces to a narrower called zone in raw `plate_x` and a higher Statcast `sz_top` ([`results/baseline_drift.csv`](results/baseline_drift.csv)). The hierarchical model absorbs a season-wide shift through its intercept `a`. The unadjusted estimator has no intercept, and README §7 shows what that costs it. Log loss is the right criterion for choosing a model form, but it does not show whether a fixed model still fits a later season; the predicted and actual strike rates have to be compared directly.
+The later seasons show the limits of comparing log loss across seasons. On 2023, 2024 and 2025 the train-only baseline scores 0.1691, 0.1695 and 0.1693, close to the validation split's 0.1715, yet it overpredicts the overall strike rate by 0.8, 0.6 and 2.6 points; in 2025 it predicts 0.358 against an actual 0.332 ([`results/baseline_transport.csv`](results/baseline_transport.csv)). Log loss does respond to the shift. Re-estimating only the intercept within each season lowers it by 0.0006 in 2023, 0.0004 in 2024 and 0.0060 in 2025, and within the 2025 shadow zone from 0.609 to 0.581. What hid the 2025 drift is that seasons differ: after the correction 2025 scores 0.1633, below 2023's 0.1686, so its pitches were easier to predict, and that offset the cost of the drift. The 2025 shift traces to a narrower called zone in raw `plate_x` and a higher Statcast `sz_top` ([`results/baseline_drift.csv`](results/baseline_drift.csv)). The hierarchical model absorbs a season-wide shift through its intercept `a`. The unadjusted estimator has no intercept, and README §7 shows what that costs it. To check whether a fixed model still fits a later season, compare predicted and actual strike rates, or log loss before and after an intercept correction within that season. Raw log loss compared across seasons will not show it.
 
-Calibration is the weaker part. Out of fold, the fitted surface over-predicts strikes below p̂ = 0.5 and under-predicts above it, by 0.7 to 1.6 points. On 100,000 held-out pitches, all three bins below 0.5 over-predict and all three above under-predict. The S-shape is real, most likely from the spline over-smoothing the transition band. Recalibrating isotonically shifts per-catcher runs by amounts spanning **0.32 runs**, against a spread of 31.5 runs across the same 84 catchers (≥300 shadow-zone pitches, 2021–2022). That is too small to change any conclusion.
+Calibration is the weaker part. Out of fold, the fitted surface over-predicts strikes below p̂ = 0.5 and under-predicts above it, by 0.7 to 1.6 points. On the 103,615 out-of-fold shadow-zone pitches, all three bins below 0.5 over-predict and all three above under-predict ([`results/baseline_calibration.csv`](results/baseline_calibration.csv)). The S-shape is real, most likely from the spline over-smoothing the transition band. Recalibrating isotonically (fit on the whole train pool) shifts per-catcher runs by amounts spanning **0.32 runs**, against a spread of 31.5 runs across the same 84 catchers (≥300 shadow-zone pitches, 2021–2022; [`results/isotonic_shift.csv`](results/isotonic_shift.csv)). That is too small to change any conclusion.
 
 ### 4.2 Hierarchical model
 
@@ -167,7 +167,7 @@ The model has two stages, but it is not an offset model. The baseline logit ente
 
 Fixing `b` at 1 barely changes the results. Refitting the same pitches with the offset model leaves per-catcher framing runs correlated with the free fit at r = 0.9997 (Spearman 0.9991). The largest single-catcher shift is **0.40 runs against a leaderboard spread of 28.9**, the mean shift is 0.06, the top ten are the same ten, and the largest rank change among 148 catchers is 12 places. The catcher and umpire components move by less than 0.005 and the pitcher component by 0.006, and P(τ_umpire > τ_catcher) stays at 0.46. The offset assumption is wrong, but the estimates do not depend on it. Both fits are in [`models/sensitivity.py`](models/sensitivity.py), summarized in [`results/sensitivity_slope.csv`](results/sensitivity_slope.csv).
 
-This check was run on the 2021–2022 train pool rather than on 2023, which had already been used once (§2.4). Refitting 2023 for a robustness check would use it a second time.
+This check was run on the 2021–2022 train pool rather than on 2023, which had already been fit once (§2.4). Refitting 2023 for a robustness check would use it a second time.
 
 Pitchers with fewer than 100 shadow-zone pitches in the data being fitted share a single pooled effect: 749 of 1,123 pitchers, carrying 25% of the pitches, on the train pool; 669 of 835, carrying 48%, on 2023. Their individual effects would be heavily shrunk anyway, but for those pitches the pitcher term is a single shared intercept that says nothing about who actually threw the pitch.
 
@@ -187,7 +187,7 @@ Switching engines did not change the estimates. On identical data (2022, shadow 
 
 **Separability.** On 2023, 27 of 102 catchers (26%) have intervals excluding zero, and in 27% of pairs one catcher is ahead of the other with posterior probability above 0.95. Restricting to catchers with ≥1,000 shadow-zone pitches raises these to 53% and 55%. Neighbors in the ranking rarely separate: of the 101 adjacent pairs, 99 have P below 0.6, with a median of 0.52. The top two separate on 2023 (P = 0.98) but not on 2021–2022 (0.77). On 2024 and 2025, 20% and 16% of catchers have intervals excluding zero and 23% and 18% of pairs are ordered at 0.95; the top two do not separate in either (0.65 and 0.70), which leaves 2023 the only fit where they do ([`results/separability.csv`](results/separability.csv)).
 
-**Coverage at the extremes.** In simulation, coverage for the largest third of effects runs 4 to 7 points below overall coverage in every scenario, including the unconfounded baseline, where it is 89.0% against 94.7%. This is a property of the estimator: partial pooling gets its stability by pulling the tails in. The caterpillar plot carries this caveat in its caption.
+**Coverage at the extremes.** In simulation, coverage for the largest third of effects runs 4 to 7 points below overall coverage in every scenario, including the unconfounded baseline, where it is 89.0% against 94.7%. Partial pooling gets its stability by pulling the tails in, so some shortfall at the extremes should be expected wherever it is used; the size measured here belongs to these simulated settings (30 catchers, about 500 pitches each). The caterpillar plot carries this caveat in its caption.
 
 ---
 
@@ -242,9 +242,9 @@ In five of the eight scenarios the data are generated from the model's own funct
 
 The full list of limitations is in [`README.md`](README.md). Four of them can be quantified, and this section gives those numbers. The rest are scope limits that the README already covers: unmodeled pitch characteristics, a flat run value, the coordinate trim.
 
-**Catcher and pitcher are partly inseparable.** A pitcher's pitches are caught by his most frequent catcher a median 60.5% of the time, and 84.8% at the 90th percentile. The posterior correlation between a catcher's effect and his most-caught pitcher's effect has a median of ρ = −0.221, with 63.6% of pairs below −0.2. In simulation this costs precision rather than coverage (the battery scenario holds at 94%), but the catcher term still picks up anything about a pitcher that changes with the catcher he throws to.
+**Catcher and pitcher are partly inseparable.** A pitcher's pitches are caught by his most frequent catcher a median 60.5% of the time, and 84.8% at the 90th percentile. The posterior correlation between a catcher's effect and his most-caught pitcher's effect has a median of ρ = −0.221, with 63.6% of pairs below −0.2. In the one battery scenario simulated, the intervals held at 94%, so at that strength the cost was precision rather than coverage; that is not a general guarantee. The catcher term also still picks up anything about a pitcher that changes with the catcher he throws to.
 
-**Coverage at the extremes is 87–91%, not 95%**, in every simulated scenario, including the unconfounded baseline. Shrinkage causes this, so it comes with the estimator and would show up on other data too. It affects the top and bottom of the leaderboard.
+**Coverage at the extremes is 87–91%, not 95%**, in every simulated scenario, including the unconfounded baseline. Shrinkage is the cause, so some shortfall should be expected on other data too, but the 87–91% figure belongs to these simulated settings. It affects the top and bottom of the leaderboard.
 
 **Unmeasured catcher-correlated confounding has a measurable cost:** 94% coverage with none, 88% when it is as large as the catcher effect, and 66% at twice that. This is a different problem from the pairing concentration in §3.2: a variable that follows the catcher and is never observed. Nothing in the data says where on that curve the real analysis sits, and better inference would not change that, because it is a property of the design rather than of the estimation.
 
@@ -264,7 +264,7 @@ Recorded because each cost time, and each would have produced a wrong number if 
 
 **Effects relative to zero vs relative to the league mean.** The two differ by a constant, which shows up in a simulation as a small bias that is the same in every scenario. When five structurally different scenarios return nearly the same bias (+0.0029 to +0.0030), the cause is arithmetic, not statistics.
 
-**Log loss did not see a 2.6-point calibration shift.** Scored on 2025, the fixed baseline's log loss was no worse than on its own validation split. The drift showed up only when predicted and actual strike rates were set side by side. Had log loss been the only check, the unadjusted estimator's 0.647 against Savant in 2025 would have read as a failure of the estimator rather than of a stale baseline.
+**Comparing log loss across seasons hid a 2.6-point calibration shift.** Scored on 2025, the fixed baseline's log loss was no worse than on its own validation split, because 2025's pitches happened to be easier to predict. Within the season log loss did respond: an intercept correction lowered it by 0.006. The drift was obvious as soon as predicted and actual strike rates were set side by side. Read across seasons, the log loss gave no warning, and the unadjusted estimator's 0.647 against Savant in 2025 could have been taken for a failure of the estimator rather than of a stale baseline.
 
 **arviz 1.3.0 is incompatible with numpyro 0.21.0**; `az.from_numpyro` fails inside `infer_dims`. Diagnostics here use `numpyro.diagnostics` directly.
 

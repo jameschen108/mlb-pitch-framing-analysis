@@ -35,9 +35,9 @@
 
 **基準機率一律樣本外。** framing 的訊號是「實際 − 預測」。如果預測來自在同一批球上擬合的模型，殘差會被擬合本身壓平一部分。這裡每一顆球的基準機率都來自沒看過它的模型：2021–2022 用依 `game_pk` 分割的五折 cross-fitting，2023–2025 則用只在 2021–2022 上擬合的模型。
 
-**分析限定在 shadow zone。** 這裡指的是模型定義的帶狀區域，也就是基準模型給出 0.2 < p̂ < 0.8 的球；不是 Statcast 那個以好球帶邊緣內外各一顆球寬度劃出的幾何 Shadow Zone。framing 只可能發生在判決有疑義的地方，數字也支持這一點。以 v1 的基準模型在 2023 上量，這個帶狀區域只佔判定球的 14.5%，卻佔了捕手效果 60.8% 的 Fisher information，因為資訊量正比於 p(1−p)，正中央的球幾乎不帶資訊。（用 v2 的基準模型，帶狀區域佔 15%。）標準誤只放大 1.27 倍，不是球數比例暗示的 2.6 倍。
+**分析限定在 shadow zone。** 這裡指的是模型定義的帶狀區域，也就是基準模型給出 0.2 < p̂ < 0.8 的球；不是 Statcast 那個以好球帶邊緣內外各一顆球寬度劃出的幾何 Shadow Zone。framing 只可能發生在判決有疑義的地方，數字也支持這一點。以 v1 的基準模型在 2023 上量，這個帶狀區域只佔判定球的 14.5%，卻佔了捕手效果 60.8% 的 Fisher information，因為資訊量正比於 p(1−p)，正中央的球幾乎不帶資訊。（用 v2 的基準模型，帶狀區域佔 15%。）標準誤只放大 1.28 倍，不是球數比例暗示的 2.6 倍（[`results/shadow_information.csv`](results/shadow_information.csv)）。
 
-**2023 在 v2 期間全程鎖住，最後只用一次。** 模型形式、門檻、推論引擎、估計目標，以及要報告哪些數字，全部在 2021–2022 上定案之後才碰 2023。這一季只在最後用了一次，為的是讓新數字能和 v1 發表的 2023 表格對照。所以它是鎖定的評估集，不是從沒碰過的 holdout：v1 早就分析過 2023 並發表了結果，而那張表正是這一輪要用這一季的理由。鎖住的意思是 v2 沒有任何決定是對著 2023 調出來的，但這不代表 2023 沒被看過。2024 和 2025 是所有決定都做完之後才抓的，所以更乾淨，也各自走同一條路擬合一次。
+**2023 在 v2 期間全程鎖住，模型只擬合一次。** 模型形式、門檻、推論引擎、估計目標，以及要報告哪些數字，全部在 2021–2022 上定案之後才碰 2023。階層模型只在最後對它擬合了一次，為的是讓新數字能和 v1 發表的 2023 表格對照。之後的診斷讀了這次擬合的後驗，也在 2023 的球上評估過基準模型，但沒有重擬模型，也沒有影響任何選擇（METHODS §2.4）。所以它是鎖定的評估集，不是從沒碰過的 holdout：v1 早就分析過 2023 並發表了結果，而那張表正是這一輪要用這一季的理由。鎖住的意思是 v2 沒有任何決定是對著 2023 調出來的，但這不代表 2023 沒被看過。2024 和 2025 是所有決定都做完之後才抓的，所以更乾淨，也各自走同一條路擬合一次。
 
 ---
 
@@ -71,11 +71,11 @@
 | 訓練集（樣本內） | 0.17346 |
 | 驗證集（樣本外，依場次分割） | 0.17149 |
 
-兩者幾乎沒有差距。大約 410 個基底、55 萬列資料再加上懲罰項，模型沒有過擬合的空間。所以 v1 報告樣本內指標是方法上的瑕疵，但沒有讓 v1 的數字失真。第 3 節檢查了唯一看起來有影響的地方，也就是對 Savant 的 0.990，好球帶形狀的樣本內擬合在那裡只佔 0.001。
+在這次的切分上，兩者的整體 log loss 看不出明顯落差（約 410 個基底對 55 萬列資料，另有懲罰項）。所以 v1 報告樣本內指標是方法上的瑕疵，但沒有明顯墊高它的擬合指標。這比「v1 的估計都沒受影響」窄：除此之外唯一的檢查是第 3 節對 Savant 的相關，在那裡重估基準模型的截距就能補回大部分差距。
 
 校準比較弱。在樣本外，模型在 p̂ = 0.5 以下高估好球機率、以上低估，整個 shadow zone 偏離 0.7 到 1.6 個百分點。這個模式在 10 萬顆樣本外的球上很一致：0.5 以下的三個分箱都高估，以上的三個都低估。不過它對結果影響不大。重新校準之後，每位捕手 runs 的位移前後只差 0.32 runs，而同一批 84 位捕手的全距是 31.5 runs，所以基準模型就維持原樣。
 
-這個模型之後沒有重擬。在後來的球季上，它的 log loss 維持在 0.169，但對整體好球率的預測會漂移：2023 高了 0.8 個百分點，2024 高了 0.6，2025 高了 2.6（[`results/baseline_transport.csv`](results/baseline_transport.csv)）。log loss 反映不出這種偏移。第 7 節說明它對未調整估計式造成什麼影響。
+這個模型之後沒有重擬。在後來的球季上，它對整體好球率的預測會漂移：2023 高了 0.8 個百分點，2024 高了 0.6，2025 高了 2.6（[`results/baseline_transport.csv`](results/baseline_transport.csv)）。各季的整體 log loss 都在 0.169 左右，沒有發出警訊；但不同球季的 log loss 不能直接比，因為每季球的組成難易不同。在同一季裡，log loss 其實有反應：在 2025 上重估截距，它從 0.1693 降到 0.1633。第 7 節說明這個漂移對未調整估計式造成什麼影響。
 
 ### 3. r = 0.990 說明了什麼，又沒說明什麼
 
@@ -89,15 +89,15 @@ v1 主要的外部檢查，是未調整榜單與 Savant framing runs 之間的�
 | 未調整殘差、僅 shadow zone、重估截距 | 0.960 |
 | 階層模型、shadow zone、樣本外 | 0.942 |
 
-改用樣本外基準少了 0.032。只在 2023 上重估一個數字，也就是基準模型的截距，就補回其中的 0.031；好球帶形狀的樣本內擬合只佔剩下的 0.001。（在該季重估一個參數本身也是樣本內，但一個截距不可能對 35 萬顆球過擬合。）
+改用樣本外基準少了 0.032。只在 2023 上重估一個數字，也就是基準模型的截距，相關就回到 0.989。（在該季重估一個參數本身也是樣本內，但一個截距不可能對 35 萬顆球過擬合。）0.990 和 0.989 來自兩條不同的流程，所以剩下那一點差距並不是在量好球帶形狀的樣本內擬合貢獻了多少；它只說明截距對了之後，剩下要解釋的東西很少。
 
-樣本外基準是在 2021–2022 上擬合的，它把 2023 的整體好球率高估了 0.8 個百分點（第 2 節）。未調整的 framing runs 是殘差乘上球數，自己沒有截距，所以整季的偏移會變成一項跟上場量成正比的東西。修正之前，捕手的 runs 與他接的球數相關 −0.38；修正之後是 −0.16，接近 Savant 的 −0.14。v1 的樣本內基準真正提供的，是這一季正確的好球率，而不是對這一季的球過擬合的好球帶曲面。之後的球季也一樣：重估截距之後，未調整估計式對 Savant 的相關在 2024 是 0.990，2025 是 0.988。沒有重估時 2025 會怎樣，見第 7 節。
+樣本外基準是在 2021–2022 上擬合的，它把 2023 的整體好球率高估了 0.8 個百分點（第 2 節）。未調整的 framing runs 是殘差乘上球數，自己沒有截距，所以整季的偏移會變成一項跟上場量成正比的東西。修正之前，捕手的 runs 與他接的球數相關 −0.38；修正之後是 −0.16，接近 Savant 的 −0.14。就這個指標來說，v1 的樣本內基準與樣本外基準之間的差別，大部分是這一季的整體好球率。之後的球季也一樣：重估截距之後，未調整估計式對 Savant 的相關在 2024 是 0.990，2025 是 0.988。沒有重估時 2025 會怎樣，見第 7 節。
 
 接著限定 shadow zone 少了 0.029，把未調整估計式換成階層模型再少 0.018。階層模型每次擬合都自己估截距，所以公平的比較對象是修正過的未調整估計式；若拿沒修正的（0.936）來比，換估計式看起來反而多了 0.006。
 
 最後一步才是重點。第 6 節顯示兩個估計式差在哪裡。差最多的是區間：在有混淆的情境下，未調整估計式宣稱 95% 的區間實際只涵蓋到 74%，階層模型則維持在 92.9% 到 95.6%。點估計之間的相關係數看不到這一點。點估計本身差得少一些：有混淆時，階層模型的 RMSE 約低四成，與真實效果的排名相關高 0.04 到 0.05。而對 Savant 的相關，換估計式讓它動了 0.018，方向還相反。
 
-所以這個相關不能當作估計式可靠的證據。一個截距就能讓它移動 0.031；換估計式讓它動得更少，而且方向跟模擬的結論相反。v1 的 README 當時就寫了這份吻合不是獨立佐證，它反映的是方法相似。其中來自樣本內擬合的那一部分，原來是這一季的整體好球率，而 Savant 推測也是在季內擬合，同樣抓對了這個數字。
+所以這個相關不能當作估計式可靠的證據。一個截距就能讓它移動 0.031；換估計式讓它動得更少，而且方向跟模擬的結論相反。v1 的 README 當時就寫了這份吻合不是獨立佐證，它反映的是方法相似。就目前的證據，樣本內擬合為它加上的，主要是這一季的整體好球率，而 Savant 推測也是在季內擬合，同樣抓對了這個數字。
 
 <p align="center">
   <img src="docs/images/zh/framing_vs_official_2023.png" width="440">
@@ -210,7 +210,7 @@ v1 的限制段用一句話提到捕手不是隨機分配給投手的。直接�
 
 模擬在區間上能清楚分開這兩個估計式（74% 對 93% 的涵蓋率），在點估計上分得比較少。外部檢查只看得到點估計。前八列沒有偏向任何一邊，而且大多本來就看不出差距：跨季各列的區間在 ±0.05 到 ±0.09 之間，Savant 2021 約 ±0.04。Savant 2022–2024 約 ±0.02 到 ±0.03，精度足以看出真正的差距；2022 稍微偏向未調整估計式，2023 和 2024 稍微偏向階層模型。
 
-2025 那一列把兩者分開了，但原因不是模擬研究的那一種。基準模型是在 2021–2022 上擬合的，之後沒有重擬；到了 2025，它整季高估好球率 2.6 個百分點（預測 0.358，實際 0.332；2023 和 2024 只差 0.6 到 0.8）。動的是兩件互不相干的事。用原始 `plate_x` 看，主審判的好球帶在左右打者兩邊都比 2024 窄了約 0.06 英尺；是主審變了還是追蹤系統變了，這份資料分不出來。另外，Statcast 的 `sz_top` 從 2023 的 3.36 英尺升到 3.44，而主審在原始英尺上的上緣一直在 3.46 到 3.49 之間。log loss 完全沒看出來：2025 是 0.1693，不比 2021–2022 的驗證分割差。
+2025 那一列把兩者分開了，但原因不是模擬研究的那一種。基準模型是在 2021–2022 上擬合的，之後沒有重擬；到了 2025，它整季高估好球率 2.6 個百分點（預測 0.358，實際 0.332；2023 和 2024 只差 0.6 到 0.8）。動的是兩件互不相干的事。用原始 `plate_x` 看，主審判的好球帶在左右打者兩邊都比 2024 窄了約 0.06 英尺；是主審變了還是追蹤系統變了，這份資料分不出來。另外，Statcast 的 `sz_top` 從 2023 的 3.36 英尺升到 3.44，而主審在原始英尺上的上緣一直在 3.46 到 3.49 之間。整體 log loss 沒有發出警訊（2025 是 0.1693，跟其他球季差不多），不過 log loss 本來就不能跨季比較；在 2025 內，只修正截距就能讓它降到 0.1633（第 2 節）。
 
 未調整的 framing runs 是殘差乘上球數再乘 0.125。它沒有截距，所以整季的偏差會變成一項跟上場量成正比的東西。第 3 節在 2023 找到同一件事，大小約四分之一。2025 shadow zone 的平均殘差是 −0.109，2023 和 2024 約 −0.03；未調整 runs 與捕手接到的 shadow zone 球數相關 −0.60，Savant 則是 +0.18。階層模型每次擬合都自己估截距，偏差就落在那裡。在 2025 自己的 shadow zone 上重擬兩個校準參數，未調整估計式對 Savant 就回到 0.964。跨季各列用的是每球比率，整體平移不會改變它，所以沒有受到影響。這些檢查是看到 2025 那一列之後才加的（[`results/baseline_transport.csv`](results/baseline_transport.csv)、[`results/baseline_drift.csv`](results/baseline_drift.csv)）。
 
@@ -299,7 +299,7 @@ v1 也在全部 104 萬列建模資料上重跑過階層模型，效應跨三季
 | 模擬 | 八情境、兩估計式、四指標 | [`sim/`](sim/) |
 | 外部驗證 | 2021–2025 每一對球季的跨季相關、逐季對照 Savant | [`models/validate.py`](models/validate.py) |
 | 敏感度 | `b` 自由估計 vs 固定為 1，以及三個 shadow zone 門檻，跑在 train pool | [`models/sensitivity.py`](models/sensitivity.py) |
-| 評估季 | 2023 只用一次；2024、2025 各擬合一次；基準模型在各季的校準 | [`models/holdout.py`](models/holdout.py) |
+| 評估季 | 2023 只擬合一次；2024、2025 各擬合一次；基準模型在各季的校準 | [`models/holdout.py`](models/holdout.py) |
 
 v1 的模組（`baseline_gam.py`、`framing_runs.py`、`hierarchical.py`、`reliability.py`、notebooks 01–06）沒有改動，仍然可以執行。
 
@@ -307,7 +307,7 @@ v1 的模組（`baseline_gam.py`、`framing_runs.py`、`hierarchical.py`、`reli
 
 下面這些 CSV 由 `uv run python make_results.py` 從模型快取寫進 [`results/`](results/)。這支程式不重新擬合任何東西；快取缺了就印出該跑哪一行指令，並跳過那張表。
 
-不在這些檔案裡的數字，由產生它的模組印出：2021 與 2022 的單季擬合與引擎對照在 [`models/compare_engines.py`](models/compare_engines.py)，log loss 在 [`models/baseline_v2.py`](models/baseline_v2.py)，METHODS §3 在 [`models/identify.py`](models/identify.py)。v1 的數字來自 [`v1.0`](../../tree/v1.0) 的模組。有兩個數字來自沒有收進 repo 的一次性檢查：shadow zone 的 Fisher information 佔比，以及第 2 節的 isotonic 重新校準。
+不在這些檔案裡的數字，由產生它的模組印出：2021 與 2022 的單季擬合與引擎對照在 [`models/compare_engines.py`](models/compare_engines.py)，log loss 在 [`models/baseline_v2.py`](models/baseline_v2.py)，METHODS §3 在 [`models/identify.py`](models/identify.py)。v1 的數字來自 [`v1.0`](../../tree/v1.0) 的模組。
 
 | 檔案 | 對應的數字 |
 |---|---|
@@ -322,7 +322,10 @@ v1 的模組（`baseline_gam.py`、`framing_runs.py`、`hierarchical.py`、`reli
 | [`external_checks.csv`](results/external_checks.csv) | 第 7 節的相關與 bootstrap 區間 |
 | [`year_over_year.csv`](results/year_over_year.csv) | 第 7 節：2021–2025 每一對球季，兩個估計式並排加配對差 |
 | [`vs_savant_by_season.csv`](results/vs_savant_by_season.csv) | 第 7 節：2021–2025 每一季對照 Savant |
-| [`baseline_transport.csv`](results/baseline_transport.csv) | 第 7 節：train-only 基準模型在之後各季的 log loss 與校準 |
+| [`baseline_transport.csv`](results/baseline_transport.csv) | 第 2、7 節：train-only 基準模型在之後各季的表現，含重估截距前後的 log loss，以及預測與實際的好球率 |
+| [`shadow_information.csv`](results/shadow_information.csv) | shadow zone 佔的球數與 Fisher information 比例，以及標準誤的放大倍數（METHODS §2.3） |
+| [`baseline_calibration.csv`](results/baseline_calibration.csv) | 第 2 節：shadow zone 內各分箱的樣本外校準 |
+| [`isotonic_shift.csv`](results/isotonic_shift.csv) | 第 2 節：isotonic 重新校準後，每位捕手的 runs 移動多少 |
 | [`baseline_drift.csv`](results/baseline_drift.csv) | 第 7 節：各季的好球帶邊緣，以及 2025 那一列的檢查 |
 | [`sim_coverage.csv`](results/sim_coverage.csv) | 第 6 節的八情境 × 兩個估計式 |
 | [`sim_confound_sweep.csv`](results/sim_confound_sweep.csv) | 混淆強度掃描 |
@@ -355,7 +358,7 @@ uv run python -m sim.run sweep 50
 # 在 train pool 上擬合四次（約 30–40 分鐘）
 uv run python -m models.sensitivity
 
-# 外部驗證，然後是 2023（只用一次）
+# 外部驗證，然後是 2023（只擬合一次）
 uv run python -m models.validate
 uv run python -m models.holdout
 
@@ -370,6 +373,10 @@ uv run python -m models.holdout --season 2025
 # train-only 基準模型搬到之後各季的表現，以及 2025 那一列的檢查（第 7 節）
 uv run python -m models.holdout --transport
 uv run python -m models.holdout --drift
+
+# 第 3 節的拆解，以及 METHODS §2.3、§4.1（shadow zone 的資訊量、校準、isotonic 位移）
+uv run python -m models.holdout --decompose
+uv run python -m models.shadow_checks
 
 uv run python make_figures_v2.py
 
@@ -401,6 +408,7 @@ models/
   validate.py          跨季與 Savant 對照
   sensitivity.py       b 自由 vs 固定為 1、shadow zone 門檻
   holdout.py           2023–2025，各擬合一次；基準模型的校準與漂移
+  shadow_checks.py     shadow zone 的資訊量、校準分箱、isotonic 位移
 sim/                   模擬研究：生成、估計、執行
 notebooks/             01_eda … 06_multiseason（v1）
 tests/                 不變量：資料清理、v1 效應對應、v2 估計式（17 個測試，約 10 秒）

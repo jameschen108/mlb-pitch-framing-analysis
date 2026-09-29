@@ -224,6 +224,15 @@ def _savant_decomposition() -> pl.DataFrame | None:
     return pl.read_parquet(DECOMP_PATH)
 
 
+def _shadow_check(name: str) -> pl.DataFrame | None:
+    import models.shadow_checks as sc
+    path = {"shadow_information": sc.INFO_PATH, "baseline_calibration": sc.CALIB_PATH,
+            "isotonic_shift": sc.ISO_PATH}[name]
+    if _need(path, "uv run python -m models.shadow_checks") is None:
+        return None
+    return pl.read_parquet(path)
+
+
 # ---- 模擬 ----
 
 def _sim_table(path: Path, by: list[str]) -> pl.DataFrame:
@@ -339,6 +348,10 @@ def main() -> None:
     write("baseline_transport", _baseline_transport())
     write("baseline_drift", _baseline_drift())
     write("savant_decomposition", _savant_decomposition())
+
+    # METHODS §2.3、§4.1：原本是一次性的檢查
+    for name in ("shadow_information", "baseline_calibration", "isotonic_shift"):
+        write(name, _shadow_check(name))
 
     sens, sens_diff = _sensitivity()
     write("sensitivity_slope", sens)
