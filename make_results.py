@@ -217,6 +217,13 @@ def _baseline_drift() -> pl.DataFrame | None:
     return pl.read_parquet(DRIFT_PATH)
 
 
+def _savant_decomposition() -> pl.DataFrame | None:
+    from models.holdout import DECOMP_PATH
+    if _need(DECOMP_PATH, "uv run python -m models.holdout --decompose") is None:
+        return None
+    return pl.read_parquet(DECOMP_PATH)
+
+
 # ---- 模擬 ----
 
 def _sim_table(path: Path, by: list[str]) -> pl.DataFrame:
@@ -331,6 +338,7 @@ def main() -> None:
     write("vs_savant_by_season", sav)
     write("baseline_transport", _baseline_transport())
     write("baseline_drift", _baseline_drift())
+    write("savant_decomposition", _savant_decomposition())
 
     sens, sens_diff = _sensitivity()
     write("sensitivity_slope", sens)

@@ -27,6 +27,7 @@ v2 定案之後才抓的兩季，走完全相同的路：train-only 基準、同
     uv run python -m models.holdout --season 2024
     uv run python -m models.holdout --transport      # 基準模型在各季的 log loss
     uv run python -m models.holdout --drift          # 2025 對 Savant 掉下去的原因
+    uv run python -m models.holdout --decompose      # 對 Savant 的相關，拆成截距與形狀
 """
 
 from __future__ import annotations
@@ -47,6 +48,7 @@ NEW_SEASONS = (2024, 2025)
 HOLDOUT_SEASONS = (SEASON, *NEW_SEASONS)
 TRANSPORT_PATH = ARTIFACT_DIR / "baseline_transport.parquet"
 DRIFT_PATH = ARTIFACT_DIR / "baseline_drift.parquet"
+DECOMP_PATH = ARTIFACT_DIR / "savant_decomposition.parquet"
 
 
 def cache_path(season: int = SEASON) -> Path:
@@ -239,12 +241,80 @@ def baseline_drift(force: bool = False) -> pl.DataFrame:
     return out
 
 
+def _recalibrate(lb: np.ndarray, y: np.ndarray, mask: np.ndarray,
+                 slope: bool) -> tuple[np.ndarray, float, float]:
+    """在 mask 那批球上重估 logit_base 的截距（slope=True 時連斜率），回傳全部球的新機率。
+
+    只動一或兩個參數，好球帶的形狀原封不動。
+    """
+    if slope:
+        from sklearn.linear_model import LogisticRegression
+        lr = LogisticRegression(C=np.inf).fit(lb[mask, None], y[mask])      # C=inf：不加懲罰
+        a, b = float(lr.intercept_[0]), float(lr.coef_[0, 0])
+    else:                                  # y ~ a + offset(logit_base)，牛頓法
+        a, b = 0.0, 1.0
+        for _ in range(50):
+            q = 1 / (1 + np.exp(-(a + lb[mask])))
+            a += float((y[mask] - q).sum() / (q * (1 - q)).sum())
+    return 1 / (1 + np.exp(-(a + b * lb))), a, b
+
+
+def savant_decomposition(force: bool = False) -> pl.DataFrame:
+    """README §3：未調整估計式對 Savant 的相關，差距來自基準模型的哪一部分。
+
+    每季兩種球（全部判定球、shadow zone）× 三種基準：train-only 原樣、在當季重估
+    截距、在當季重估截距與斜率。重估只用一兩個參數，所以「原樣 → 重估截距」的差，
+    就是基準模型整體好球率偏掉的代價；v1 的 in-sample 基準與這一列之間剩下的，
+    才是好球帶形狀的 in-sample 擬合。
+
+    residual runs 沒有截距，整體偏差會乘上球數，變成一項跟上場量成正比的東西，
+    所以同時列出 runs 與球數的相關，以及 Savant 自己與球數的相關當對照。
+    """
+    if DECOMP_PATH.exists() and not force:
+        return pl.read_parquet(DECOMP_PATH)
+
+    from data.official import fetch_official_framing
+    from models.baseline_v2 import fit_or_load
+
+    gam = fit_or_load()
+    rows = []
+    for season in HOLDOUT_SEASONS:
+        df = load_modeling_frame(season)
+        p = gam.predict_proba(_matrix(df))
+        y, lb = df["is_strike"].to_numpy().astype(float), _logit(p)
+        catcher = df["fielder_2"].to_numpy()
+        off = fetch_official_framing(season).rename({"id": "catcher"})
+        masks = {"all": np.ones(len(y), bool), "shadow": (p > SHADOW_LO) & (p < SHADOW_HI)}
+        for pitches, mask in masks.items():
+            fits = {"train_only": (p, 0.0, 1.0),
+                    "intercept": _recalibrate(lb, y, mask, slope=False),
+                    "intercept_slope": _recalibrate(lb, y, mask, slope=True)}
+            for baseline, (q, a, b) in fits.items():
+                t = (pl.DataFrame({"catcher": catcher[mask], "r": (y - q)[mask]})
+                     .group_by("catcher").agg(n=pl.len(), runs=pl.col("r").sum() * RUN_VALUE)
+                     .join(off, on="catcher"))
+                n, runs, sv = (t[c].to_numpy() for c in ("n", "runs", "rv_tot"))
+                rows.append({
+                    "season": season, "pitches": pitches, "baseline": baseline,
+                    "recal_intercept": a, "recal_slope": b,
+                    "mean_resid": float((y - q)[mask].mean()), "n_catchers": t.height,
+                    "r_savant": float(np.corrcoef(runs, sv)[0, 1]),
+                    "corr_runs_vs_pitches": float(np.corrcoef(runs, n)[0, 1]),
+                    "corr_savant_vs_pitches": float(np.corrcoef(sv, n)[0, 1]),
+                })
+    out = pl.DataFrame(rows)
+    ARTIFACT_DIR.mkdir(parents=True, exist_ok=True)
+    out.write_parquet(DECOMP_PATH)
+    return out
+
+
 def _parse_args():
     import argparse
     p = argparse.ArgumentParser(description="holdout 球季的後驗與基準模型檢查")
     p.add_argument("--season", type=int, default=SEASON, choices=HOLDOUT_SEASONS)
     p.add_argument("--transport", action="store_true", help="只印基準模型在各季的 log loss")
     p.add_argument("--drift", action="store_true", help="只印好球帶漂移與 2025 的診斷")
+    p.add_argument("--decompose", action="store_true", help="只印對 Savant 相關的拆解")
     return p.parse_args()
 
 
@@ -254,9 +324,10 @@ if __name__ == "__main__":
     from models.intervals import leaderboard, separability
 
     args = _parse_args()
-    if args.transport or args.drift:
-        pl.Config.set_tbl_cols(-1); pl.Config.set_tbl_width_chars(250)
-        print(baseline_transport() if args.transport else baseline_drift())
+    if args.transport or args.drift or args.decompose:
+        pl.Config.set_tbl_cols(-1); pl.Config.set_tbl_width_chars(250); pl.Config.set_tbl_rows(-1)
+        print(baseline_transport() if args.transport
+              else baseline_drift() if args.drift else savant_decomposition())
         raise SystemExit
 
     season = args.season
