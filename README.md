@@ -73,6 +73,8 @@ The model form is the same as v1's: a tensor spline over `plate_x` × standardiz
 
 The two are essentially the same. With about 410 basis functions, 550,000 rows and a penalty term, the model has no room to overfit. So v1's use of in-sample fit statistics was a methodological flaw, but it did not distort any of v1's numbers, with one exception covered in section 3.
 
+The model is never refit. On the later seasons its log loss stays at 0.169, but its overall strike rate drifts: 0.8 points too high in 2023, 0.6 in 2024 and 2.6 in 2025 ([`results/baseline_transport.csv`](results/baseline_transport.csv)). Log loss does not register a shift of that kind. Section 7 shows what it does to the unadjusted estimator.
+
 Calibration is weaker. Out of fold, the model over-predicts strikes below p̂ = 0.5 and under-predicts above it, by 0.7 to 1.6 points across the shadow zone. The pattern is consistent on 100,000 held-out pitches: all three bins below 0.5 over-predict and all three above under-predict. It does not matter much for the results, though. Recalibrating shifts per-catcher runs by amounts spanning 0.32 runs, against a spread of 31.5 runs across the same 84 catchers, so the baseline was left as is.
 
 ### 3. What r = 0.990 does and does not show
@@ -151,7 +153,7 @@ Gray intervals cover zero; blue ones do not. 2023:
 
 Among the 63 catchers Savant lists as qualified, 23 have intervals excluding zero.
 
-The two ends of the distribution separate clearly from zero, but the middle does not, and neighbors in the ranking are mostly indistinguishable. Of the 101 adjacent pairs, 99 have P(higher > lower) below 0.6, with a median of 0.52. Even among the 15 catchers with at least 1,000 shadow pitches, the median is 0.62. The top of 2023 is the exception, with Hedges ahead of Álvarez at P = 0.98; on 2021–2022 the top two are not separable (0.77).
+The two ends of the distribution separate clearly from zero, but the middle does not, and neighbors in the ranking are mostly indistinguishable. Of the 101 adjacent pairs, 99 have P(higher > lower) below 0.6, with a median of 0.52. Even among the 15 catchers with at least 1,000 shadow pitches, the median is 0.62. The top of 2023 is the exception, with Hedges ahead of Álvarez at P = 0.98; on 2021–2022 the top two are not separable (0.77). It stays the only exception. The top two do not separate on 2024 (0.65) or 2025 (0.70), where 20% and 16% of catchers have intervals excluding zero ([`results/separability.csv`](results/separability.csv)).
 
 Before running this, I wrote down in a working plan that a result like this would be acceptable, and that all three shadow-zone thresholds would be reported. The plan was private, so its timing cannot be verified from outside. What can be checked is whether the reported threshold turned out to be the convenient one.
 
@@ -292,9 +294,9 @@ Next I would look at the ABS challenge era. 2026 was excluded here because the w
 | Engine comparison | VB vs NUTS, season stability | [`models/compare_engines.py`](models/compare_engines.py) |
 | Intervals | Δ posterior, pairwise comparison probabilities | [`models/intervals.py`](models/intervals.py) |
 | Simulation | Eight scenarios, two estimators, four metrics | [`sim/`](sim/) |
-| External validation | Year over year, Savant comparison | [`models/validate.py`](models/validate.py) |
+| External validation | Year over year for every pair of seasons 2021–2025, Savant comparison by season | [`models/validate.py`](models/validate.py) |
 | Sensitivity | `b` free vs fixed at 1, and the three shadow-zone thresholds, on the train pool | [`models/sensitivity.py`](models/sensitivity.py) |
-| Locked evaluation | 2023, used once | [`models/holdout.py`](models/holdout.py) |
+| Evaluation seasons | 2023 used once; 2024 and 2025 one fit each; the baseline's calibration on each | [`models/holdout.py`](models/holdout.py) |
 
 v1's modules (`baseline_gam.py`, `framing_runs.py`, `hierarchical.py`, `reliability.py`, notebooks 01–06) are unchanged and still run.
 
@@ -302,15 +304,17 @@ v1's modules (`baseline_gam.py`, `framing_runs.py`, `hierarchical.py`, `reliabil
 
 The CSVs below are written to [`results/`](results/) from cached model output by `uv run python make_results.py`. That script refits nothing; if a cache is missing, it names the command that rebuilds it and skips the table.
 
-Numbers not in these files are printed by the module that produces them: the single-season fits and the engine comparison by [`models/compare_engines.py`](models/compare_engines.py), the 2023 correlations against Savant by [`models/holdout.py`](models/holdout.py), the log loss by [`models/baseline_v2.py`](models/baseline_v2.py), and METHODS §3 by [`models/identify.py`](models/identify.py). v1's numbers come from its own modules at [`v1.0`](../../tree/v1.0). Three came from one-off checks that are not in the repo: the Fisher-information share of the shadow zone, the isotonic recalibration in section 2, and the all-pitches correlation of 0.958 in section 3.
+Numbers not in these files are printed by the module that produces them: the 2021 and 2022 single-season fits and the engine comparison by [`models/compare_engines.py`](models/compare_engines.py), the log loss by [`models/baseline_v2.py`](models/baseline_v2.py), and METHODS §3 by [`models/identify.py`](models/identify.py). v1's numbers come from its own modules at [`v1.0`](../../tree/v1.0). Three came from one-off checks that are not in the repo: the Fisher-information share of the shadow zone, the isotonic recalibration in section 2, and the all-pitches correlation of 0.958 in section 3.
 
 | File | What it backs |
 |---|---|
 | [`leaderboard_2023_holdout.csv`](results/leaderboard_2023_holdout.csv) | the 2023 leaderboard above: all 102 catchers, with Δ, framing runs, 95% intervals and Savant's figure |
 | [`leaderboard_2021_2022_train.csv`](results/leaderboard_2021_2022_train.csv) | the same for the pooled 2021–2022 fit, 148 catchers |
+| [`leaderboard_2024_holdout.csv`](results/leaderboard_2024_holdout.csv) | the same for 2024, 100 catchers, with Savant's 2024 figure |
+| [`leaderboard_2025_holdout.csv`](results/leaderboard_2025_holdout.csv) | the same for 2025, 110 catchers, with Savant's 2025 figure |
 | [`leaderboard_v1_pooled_2021_2023.csv`](results/leaderboard_v1_pooled_2021_2023.csv) | v1's three-season VB leaderboard (section 8) |
-| [`variance_components.csv`](results/variance_components.csv) | section 4's τ table and P(τ_umpire > τ_catcher) |
-| [`separability.csv`](results/separability.csv) | section 5's three minimum-pitch cutoffs (0, 500, 1,000), both fits, with the adjacent-rank probabilities |
+| [`variance_components.csv`](results/variance_components.csv) | section 4's τ table and P(τ_umpire > τ_catcher), for 2023, 2024, 2025 and the pooled 2021–2022 fit |
+| [`separability.csv`](results/separability.csv) | section 5's three minimum-pitch cutoffs (0, 500, 1,000) for each of the four fits, with the adjacent-rank probabilities |
 | [`external_checks.csv`](results/external_checks.csv) | section 7's correlations and bootstrap intervals |
 | [`year_over_year.csv`](results/year_over_year.csv) | section 7: every pair of seasons 2021–2025, both estimators, with the paired difference |
 | [`vs_savant_by_season.csv`](results/vs_savant_by_season.csv) | section 7: each season 2021–2025 against Savant |
@@ -392,7 +396,7 @@ models/
   identify.py          identifiability diagnostics
   validate.py          year-over-year and Savant comparison
   sensitivity.py       b free vs fixed at 1, shadow-zone thresholds
-  holdout.py           2023, used once
+  holdout.py           2023–2025, one fit each; baseline calibration and drift
 sim/                   simulation study: generate, estimate, run
 notebooks/             01_eda … 06_multiseason (v1)
 tests/                 invariants: cleaning, v1 effect mapping, v2 estimator (17 tests, ~10s)

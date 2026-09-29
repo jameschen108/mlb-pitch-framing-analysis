@@ -75,6 +75,8 @@
 
 校準比較弱。在樣本外，模型在 p̂ = 0.5 以下高估好球機率、以上低估，整個 shadow zone 偏離 0.7 到 1.6 個百分點。這個模式在 10 萬顆樣本外的球上很一致：0.5 以下的三個分箱都高估，以上的三個都低估。不過它對結果影響不大。重新校準之後，每位捕手 runs 的位移前後只差 0.32 runs，而同一批 84 位捕手的全距是 31.5 runs，所以基準模型就維持原樣。
 
+這個模型之後沒有重擬。在後來的球季上，它的 log loss 維持在 0.169，但對整體好球率的預測會漂移：2023 高了 0.8 個百分點，2024 高了 0.6，2025 高了 2.6（[`results/baseline_transport.csv`](results/baseline_transport.csv)）。log loss 反映不出這種偏移。第 7 節說明它對未調整估計式造成什麼影響。
+
 ### 3. r = 0.990 說明了什麼，又沒說明什麼
 
 v1 主要的外部檢查，是未調整榜單與 Savant framing runs 之間的相關。現在可以在 2023 上把這個相關拆開來看：
@@ -151,7 +153,7 @@ shadow zone 的門檻也會推動它。在合併的 train pool 上，事前承�
 
 在 Savant 列為合格的 63 位捕手中，23 位的區間不含零。
 
-分布的兩端和零分得很清楚，中段則分不開，排名相鄰的兩位多半也分不出先後。101 組相鄰配對裡，有 99 組的 P(前者 > 後者) 低於 0.6，中位數 0.52。即使只看 shadow zone 球數 ≥1,000 的 15 位，中位數也只有 0.62。例外是 2023 的最前面：Hedges 領先 Álvarez 的機率是 0.98；在 2021–2022 上，前兩名則分不開（0.77）。
+分布的兩端和零分得很清楚，中段則分不開，排名相鄰的兩位多半也分不出先後。101 組相鄰配對裡，有 99 組的 P(前者 > 後者) 低於 0.6，中位數 0.52。即使只看 shadow zone 球數 ≥1,000 的 15 位，中位數也只有 0.62。例外是 2023 的最前面：Hedges 領先 Álvarez 的機率是 0.98；在 2021–2022 上，前兩名則分不開（0.77）。這個例外至今仍是唯一的：2024（0.65）與 2025（0.70）的前兩名都分不開，這兩季區間不含零的捕手分別是 20% 與 16%（[`results/separability.csv`](results/separability.csv)）。
 
 跑這一步之前，我在工作計畫裡寫下：這樣的結果是可以接受的，而且三個 shadow zone 門檻都會報告。那份計畫沒有公開，所以它寫於何時，外人無從查證。能查的是：主文用的門檻，事後看來是不是最方便的那一個。
 
@@ -292,9 +294,9 @@ v1 也在全部 104 萬列建模資料上重跑過階層模型，效應跨三季
 | 引擎對照 | VB 對 NUTS、季別穩定性 | [`models/compare_engines.py`](models/compare_engines.py) |
 | 區間 | Δ 後驗、成對比較機率 | [`models/intervals.py`](models/intervals.py) |
 | 模擬 | 八情境、兩估計式、四指標 | [`sim/`](sim/) |
-| 外部驗證 | 跨季、對照 Savant | [`models/validate.py`](models/validate.py) |
+| 外部驗證 | 2021–2025 每一對球季的跨季相關、逐季對照 Savant | [`models/validate.py`](models/validate.py) |
 | 敏感度 | `b` 自由估計 vs 固定為 1，以及三個 shadow zone 門檻，跑在 train pool | [`models/sensitivity.py`](models/sensitivity.py) |
-| 鎖定評估集 | 2023，只用一次 | [`models/holdout.py`](models/holdout.py) |
+| 評估季 | 2023 只用一次；2024、2025 各擬合一次；基準模型在各季的校準 | [`models/holdout.py`](models/holdout.py) |
 
 v1 的模組（`baseline_gam.py`、`framing_runs.py`、`hierarchical.py`、`reliability.py`、notebooks 01–06）沒有改動，仍然可以執行。
 
@@ -302,15 +304,17 @@ v1 的模組（`baseline_gam.py`、`framing_runs.py`、`hierarchical.py`、`reli
 
 下面這些 CSV 由 `uv run python make_results.py` 從模型快取寫進 [`results/`](results/)。這支程式不重新擬合任何東西；快取缺了就印出該跑哪一行指令，並跳過那張表。
 
-不在這些檔案裡的數字，由產生它的模組印出：單季擬合與引擎對照在 [`models/compare_engines.py`](models/compare_engines.py)，2023 對 Savant 的相關在 [`models/holdout.py`](models/holdout.py)，log loss 在 [`models/baseline_v2.py`](models/baseline_v2.py)，METHODS §3 在 [`models/identify.py`](models/identify.py)。v1 的數字來自 [`v1.0`](../../tree/v1.0) 的模組。有三個數字來自沒有收進 repo 的一次性檢查：shadow zone 的 Fisher information 佔比、第 2 節的 isotonic 重新校準、第 3 節全部判定球的 0.958 相關。
+不在這些檔案裡的數字，由產生它的模組印出：2021 與 2022 的單季擬合與引擎對照在 [`models/compare_engines.py`](models/compare_engines.py)，log loss 在 [`models/baseline_v2.py`](models/baseline_v2.py)，METHODS §3 在 [`models/identify.py`](models/identify.py)。v1 的數字來自 [`v1.0`](../../tree/v1.0) 的模組。有三個數字來自沒有收進 repo 的一次性檢查：shadow zone 的 Fisher information 佔比、第 2 節的 isotonic 重新校準、第 3 節全部判定球的 0.958 相關。
 
 | 檔案 | 對應的數字 |
 |---|---|
 | [`leaderboard_2023_holdout.csv`](results/leaderboard_2023_holdout.csv) | 上面那份 2023 榜單：全部 102 位捕手的 Δ、framing runs、95% 區間與 Savant 數字 |
 | [`leaderboard_2021_2022_train.csv`](results/leaderboard_2021_2022_train.csv) | 2021–2022 合併擬合的同一組欄位，148 位捕手 |
+| [`leaderboard_2024_holdout.csv`](results/leaderboard_2024_holdout.csv) | 2024 的同一組欄位，100 位捕手，附 Savant 2024 的數字 |
+| [`leaderboard_2025_holdout.csv`](results/leaderboard_2025_holdout.csv) | 2025 的同一組欄位，110 位捕手，附 Savant 2025 的數字 |
 | [`leaderboard_v1_pooled_2021_2023.csv`](results/leaderboard_v1_pooled_2021_2023.csv) | v1 的三季合併 VB 榜單（第 8 節） |
-| [`variance_components.csv`](results/variance_components.csv) | 第 4 節的 τ 表與 P(τ 主審 > τ 捕手) |
-| [`separability.csv`](results/separability.csv) | 第 5 節的三個最低球數門檻（0、500、1,000），兩組擬合，含相鄰名次的機率 |
+| [`variance_components.csv`](results/variance_components.csv) | 第 4 節的 τ 表與 P(τ 主審 > τ 捕手)，含 2023、2024、2025 與 2021–2022 合併擬合 |
+| [`separability.csv`](results/separability.csv) | 第 5 節的三個最低球數門檻（0、500、1,000），四組擬合各一份，含相鄰名次的機率 |
 | [`external_checks.csv`](results/external_checks.csv) | 第 7 節的相關與 bootstrap 區間 |
 | [`year_over_year.csv`](results/year_over_year.csv) | 第 7 節：2021–2025 每一對球季，兩個估計式並排加配對差 |
 | [`vs_savant_by_season.csv`](results/vs_savant_by_season.csv) | 第 7 節：2021–2025 每一季對照 Savant |
@@ -392,7 +396,7 @@ models/
   identify.py          識別性診斷
   validate.py          跨季與 Savant 對照
   sensitivity.py       b 自由 vs 固定為 1、shadow zone 門檻
-  holdout.py           2023，只用一次
+  holdout.py           2023–2025，各擬合一次；基準模型的校準與漂移
 sim/                   模擬研究：生成、估計、執行
 notebooks/             01_eda … 06_multiseason（v1）
 tests/                 不變量：資料清理、v1 效應對應、v2 估計式（17 個測試，約 10 秒）

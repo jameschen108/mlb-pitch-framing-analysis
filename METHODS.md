@@ -31,14 +31,14 @@ Three properties of Δ are worth noting. It is measured against the league avera
 
 ## 2. Data and design
 
-2021–2023 regular seasons, called pitches only: 1.06M, or 1.04M after dropping pitches with |plate_x| > 2.5 ft or standardized height outside [−1, 2] to keep the spline from extrapolating. Statcast via `pybaseball`; home-plate umpires from the MLB Stats API, joined on `game_pk`. Heights are standardized as `(plate_z − sz_bot) / (sz_top − sz_bot)`.
+2021–2023 regular seasons, called pitches only: 1.06M, or 1.04M after dropping pitches with |plate_x| > 2.5 ft or standardized height outside [−1, 2] to keep the spline from extrapolating. 2024 and 2025 (0.71M called pitches, 0.69M after the same trim) were added after v2 was locked, as evaluation seasons only (§2.4). Statcast via `pybaseball`; home-plate umpires from the MLB Stats API, joined on `game_pk`. Heights are standardized as `(plate_z − sz_bot) / (sz_top − sz_bot)`.
 
 ### 2.1 Out-of-sample baseline probabilities
 
 The whole measure rests on the residual `actual − predicted`. A baseline model fit on the pitches it scores flattens those residuals. Every baseline probability in this project comes from a model that never saw the pitch:
 
 - **2021–2022**: five-fold cross-fitting, with folds assigned by `game_pk`. Five GAM fits, each predicting the fold it did not see.
-- **2023**: predicted by a model fit on the 2021–2022 training split only.
+- **2023–2025**: predicted by a model fit on the 2021–2022 training split only. That model is never refit, which by 2025 has a cost (§4.1).
 
 The two schemes differ in form, but both are out of sample.
 
@@ -90,7 +90,11 @@ The reported band is also not the convenient one. The narrowest intervals are at
 
 This is not a holdout in the strict sense. v1 had analyzed 2023 and published a leaderboard on it, and comparing against that table is the reason this round uses the season. So 2023 was never unseen: it was seen in v1, and v2's research question was shaped by what v1 found. What the lock does guarantee is that no v2 decision (the threshold, the engine, the estimand, the reported quantities) was tuned on 2023. It is a locked evaluation set for the v2 cycle, and calling it an untouched holdout would claim more than the design supports.
 
-The lock also had a cost. With 2023 reserved, year-over-year stability rests on a single season pair, so there is no decay curve of the kind v1 reported.
+The lock had a cost: with 2023 reserved, year-over-year stability rested on a single season pair. 2024 and 2025 paid most of it back.
+
+**2024 and 2025.** Both seasons were fetched after every decision above had been made, so none of those decisions could have been tuned on them. Neither was seen by v1 either, which makes them closer to a true holdout than 2023 is. Each goes through the same path as 2023: the train-only baseline, the same threshold and sampler settings, one fit. With 2021–2023 they give ten pairs of seasons for year-over-year stability instead of one (README §8). The training data did not grow.
+
+Adding them meant touching 2023 again. The year-over-year pairs that include 2023 read its cached posterior, and the baseline's calibration was scored on it (§4.1) and diagnosed on it. None of this refit the 2023 model or informed a choice.
 
 ---
 
@@ -147,6 +151,8 @@ Logistic GAM (pyGAM), tensor spline with 20 splines per margin. The model is jud
 
 In-sample and out-of-sample log loss differ by 0.002 (0.17346 vs 0.17149). With about 410 basis functions, 550,000 rows and a penalty term, there was no room to overfit, so v1's in-sample reporting was a methodological flaw that did not distort its fit statistics.
 
+Log loss has a blind spot, which the later seasons exposed. On 2023, 2024 and 2025 the train-only baseline scores 0.1691, 0.1695 and 0.1693, no worse than the validation split's 0.1715. Yet it overpredicts the overall strike rate by 0.8, 0.6 and 2.6 points; in 2025 it predicts 0.358 against an actual 0.332 ([`results/baseline_transport.csv`](results/baseline_transport.csv)). Log loss averages over every called pitch, most of them near p = 0 or 1, where a shift in the intercept changes little; the shadow zone, where it matters, is 15% of pitches. The 2025 shift traces to a narrower called zone in raw `plate_x` and a higher Statcast `sz_top` ([`results/baseline_drift.csv`](results/baseline_drift.csv)). The hierarchical model absorbs a season-wide shift through its intercept `a`. The unadjusted estimator has no intercept, and README §7 shows what that costs it. Log loss is the right criterion for choosing a model form, but it does not show whether a fixed model still fits a later season; the predicted and actual strike rates have to be compared directly.
+
 Calibration is the weaker part. Out of fold, the fitted surface over-predicts strikes below p̂ = 0.5 and under-predicts above it, by 0.7 to 1.6 points. On 100,000 held-out pitches, all three bins below 0.5 over-predict and all three above under-predict. The S-shape is real, most likely from the spline over-smoothing the transition band. Recalibrating isotonically shifts per-catcher runs by amounts spanning **0.32 runs**, against a spread of 31.5 runs across the same 84 catchers (≥300 shadow-zone pitches, 2021–2022). That is too small to change any conclusion.
 
 ### 4.2 Hierarchical model
@@ -179,7 +185,7 @@ Switching engines did not change the estimates. On identical data (2022, shadow 
 
 **Pairwise comparisons.** `P(Δ_A > Δ_B)` is counted directly from the joint posterior draws, so the comparison accounts for the correlation between the two estimates.
 
-**Separability.** On 2023, 27 of 102 catchers (26%) have intervals excluding zero, and in 27% of pairs one catcher is ahead of the other with posterior probability above 0.95. Restricting to catchers with ≥1,000 shadow-zone pitches raises these to 53% and 55%. Neighbors in the ranking rarely separate: of the 101 adjacent pairs, 99 have P below 0.6, with a median of 0.52. The top two separate on 2023 (P = 0.98) but not on 2021–2022 (0.77).
+**Separability.** On 2023, 27 of 102 catchers (26%) have intervals excluding zero, and in 27% of pairs one catcher is ahead of the other with posterior probability above 0.95. Restricting to catchers with ≥1,000 shadow-zone pitches raises these to 53% and 55%. Neighbors in the ranking rarely separate: of the 101 adjacent pairs, 99 have P below 0.6, with a median of 0.52. The top two separate on 2023 (P = 0.98) but not on 2021–2022 (0.77). On 2024 and 2025, 20% and 16% of catchers have intervals excluding zero and 23% and 18% of pairs are ordered at 0.95; the top two do not separate in either (0.65 and 0.70), which leaves 2023 the only fit where they do ([`results/separability.csv`](results/separability.csv)).
 
 **Coverage at the extremes.** In simulation, coverage for the largest third of effects runs 4 to 7 points below overall coverage in every scenario, including the unconfounded baseline, where it is 89.0% against 94.7%. This is a property of the estimator: partial pooling gets its stability by pulling the tails in. The caterpillar plot carries this caveat in its caption.
 
@@ -234,13 +240,15 @@ In five of the eight scenarios the data are generated from the model's own funct
 
 ## 7. What the numbers here bound
 
-The full list of limitations is in [`README.md`](README.md). Three of them can be quantified, and this section gives those numbers. The rest are scope limits that the README already covers: unmodeled pitch characteristics, a flat run value, the coordinate trim.
+The full list of limitations is in [`README.md`](README.md). Four of them can be quantified, and this section gives those numbers. The rest are scope limits that the README already covers: unmodeled pitch characteristics, a flat run value, the coordinate trim.
 
 **Catcher and pitcher are partly inseparable.** A pitcher's pitches are caught by his most frequent catcher a median 60.5% of the time, and 84.8% at the 90th percentile. The posterior correlation between a catcher's effect and his most-caught pitcher's effect has a median of ρ = −0.221, with 63.6% of pairs below −0.2. In simulation this costs precision rather than coverage (the battery scenario holds at 94%), but the catcher term still picks up anything about a pitcher that changes with the catcher he throws to.
 
 **Coverage at the extremes is 87–91%, not 95%**, in every simulated scenario, including the unconfounded baseline. Shrinkage causes this, so it comes with the estimator and would show up on other data too. It affects the top and bottom of the leaderboard.
 
 **Unmeasured catcher-correlated confounding has a measurable cost:** 94% coverage with none, 88% when it is as large as the catcher effect, and 66% at twice that. This is a different problem from the pairing concentration in §3.2: a variable that follows the catcher and is never observed. Nothing in the data says where on that curve the real analysis sits, and better inference would not change that, because it is a property of the design rather than of the estimation.
+
+**The baseline is fit once and drifts.** Fit on 2021–2022 and never refit, it overpredicts the overall strike rate by 0.6 to 0.8 points in 2023 and 2024 and by 2.6 points in 2025 (§4.1). The hierarchical estimates absorb this through their intercept. The unadjusted estimator cannot: in 2025 it agrees with Savant at 0.647 against the hierarchical model's 0.955, and re-estimating two calibration parameters on the season brings it back to 0.964. Any comparison across seasons that keeps one baseline fixed has to measure this drift first.
 
 ---
 
@@ -255,6 +263,8 @@ Recorded because each cost time, and each would have produced a wrong number if 
 **`numpyro.set_host_device_count` is ignored once XLA has initialized.** Calling it inside each fit means a later 4-chain run falls back to sequential execution, with only one warning on stderr and twice the wall time. The device count has to be set through `XLA_FLAGS` before JAX is imported.
 
 **Effects relative to zero vs relative to the league mean.** The two differ by a constant, which shows up in a simulation as a small bias that is the same in every scenario. When five structurally different scenarios return nearly the same bias (+0.0029 to +0.0030), the cause is arithmetic, not statistics.
+
+**Log loss did not see a 2.6-point calibration shift.** Scored on 2025, the fixed baseline's log loss was no worse than on its own validation split. The drift showed up only when predicted and actual strike rates were set side by side. Had log loss been the only check, the unadjusted estimator's 0.647 against Savant in 2025 would have read as a failure of the estimator rather than of a stale baseline.
 
 **arviz 1.3.0 is incompatible with numpyro 0.21.0**; `az.from_numpyro` fails inside `infer_dims`. Diagnostics here use `numpyro.diagnostics` directly.
 
