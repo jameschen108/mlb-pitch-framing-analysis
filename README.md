@@ -73,7 +73,7 @@ The model form is the same as v1's: a tensor spline over `plate_x` × standardiz
 
 On this split there is no visible gap in overall log loss between the two (about 410 basis functions against 550,000 rows, with a penalty term). So v1's use of in-sample fit statistics was a methodological flaw that did not visibly inflate its fit. That is narrower than saying none of v1's estimates were affected. The only other check is the Savant correlation in section 3, where re-estimating the baseline's intercept recovers most of the gap.
 
-The model is never refit. On the later seasons its overall strike rate drifts: 0.8 points too high in 2023, 0.6 in 2024 and 2.6 in 2025 ([`results/baseline_transport.csv`](results/baseline_transport.csv)). The overall log loss stays close to 0.169 in every season, so it gave no warning, but log loss is not comparable across seasons, because each season's mix of pitches is easier or harder to predict. Within a season it does respond: re-estimating the intercept on 2025 lowers it from 0.1693 to 0.1633. Section 7 shows what the drift does to the unadjusted estimator.
+The model is never refit. By 2025 it overpredicts the overall strike rate by 2.6 points; section 7 covers where that drift comes from and what it does to the unadjusted estimator.
 
 Calibration is weaker. Out of fold, the model over-predicts strikes below p̂ = 0.5 and under-predicts above it, by 0.7 to 1.6 points across the shadow zone. The pattern is consistent on 100,000 held-out pitches: all three bins below 0.5 over-predict and all three above under-predict. It does not matter much for the results, though. Recalibrating shifts per-catcher runs by amounts spanning 0.32 runs, against a spread of 31.5 runs across the same 84 catchers, so the baseline was left as is.
 
@@ -89,15 +89,9 @@ v1's main external check was the correlation between its unadjusted leaderboard 
 | residual runs, shadow zone only, intercept re-estimated | 0.960 |
 | hierarchical model, shadow zone, out-of-sample | 0.942 |
 
-Moving to an out-of-sample baseline costs 0.032. Re-estimating a single number on 2023, the baseline's intercept, brings the correlation back to 0.989. (Re-estimating one parameter on the season is itself in-sample, but one intercept cannot overfit 350,000 pitches.) The 0.990 and the 0.989 come from two different pipelines, so the small remaining difference does not measure what the in-sample fit of the zone's shape contributed. It says only that once the intercept is right, little is left to explain.
+Moving to an out-of-sample baseline costs 0.032; re-estimating a single number on 2023, the baseline's intercept, brings the correlation back to 0.989. The out-of-sample baseline overpredicts 2023's overall strike rate by 0.8 points, and unadjusted framing runs have no intercept, so a season-wide offset becomes a term proportional to playing time (section 7). Most of what separated v1's in-sample baseline from an out-of-sample one was therefore the season's overall strike rate, which Savant, presumably fitting within season, also has right. 2024 and 2025 behave the same way: with the intercept re-estimated, the unadjusted estimator reaches 0.990 and 0.988 against Savant.
 
-The out-of-sample baseline was fit on 2021–2022, and it overpredicts 2023's overall strike rate by 0.8 points (section 2). Unadjusted framing runs are the residual times the number of pitches, with no intercept of their own, so a season-wide offset becomes a term proportional to playing time. Before the correction, a catcher's runs correlate −0.38 with the number of pitches he received; after it, −0.16, close to Savant's −0.14. On this measure, most of what separated v1's in-sample baseline from an out-of-sample one was the season's overall strike rate. The later seasons show the same thing: with the intercept re-estimated, the unadjusted estimator reaches 0.990 against Savant in 2024 and 0.988 in 2025. Section 7 shows what happens in 2025 without it.
-
-Restricting to the shadow zone then costs 0.029, and switching from the unadjusted estimator to the hierarchical one costs another 0.018. The hierarchical model estimates its own intercept in every fit, so the like-for-like comparison is with the corrected unadjusted estimator. Against the uncorrected one (0.936), the switch would seem to add 0.006.
-
-The last step is the important one. Section 6 shows how the two estimators differ. The biggest difference is in their intervals: under confounding, the unadjusted estimator's nominal 95% intervals cover as little as 74% of the time, while the hierarchical model's stay between 92.9% and 95.6%. A correlation between point estimates cannot detect that. The point estimates differ less. Under confounding, the hierarchical model's RMSE is about 40% lower and its rank correlation with the true effects is 0.04 to 0.05 higher. Against Savant, the switch moves the correlation by 0.018 the other way, which is within the noise of this check: the paired interval on 2023 is about ±0.026 wide.
-
-So the correlation is not evidence that an estimator is sound. One intercept moves it by 0.031. The choice of estimator moves it by less, and by an amount the check cannot distinguish from zero. v1's README already said the agreement was not independent confirmation, since it reflects a shared method. On this evidence, what fitting in-sample adds to it is mostly the season's overall strike rate, which Savant, presumably fitting within season, also has right.
+Restricting to the shadow zone then costs 0.029, and switching to the hierarchical model another 0.018. That last step is the important one, because this correlation cannot see where the two estimators differ most. Under confounding, the unadjusted estimator's nominal 95% intervals cover as little as 74% of the time, while the hierarchical model's stay between 92.9% and 95.6%; the point estimates differ less, with the hierarchical model's RMSE about 40% lower (section 6). The 0.018 itself is within the noise of this check: the paired interval on 2023 is about ±0.026 wide. So the correlation is not evidence that an estimator is sound. One intercept moves it by 0.031; the choice of estimator moves it by less, and by an amount the check cannot distinguish from zero. v1's README already said the agreement was not independent confirmation, since it reflects a shared method.
 
 <p align="center">
   <img src="docs/images/en/framing_vs_official_2023.png" width="440">
@@ -107,11 +101,7 @@ So the correlation is not evidence that an estimator is sound. One intercept mov
 
 The model is v1's: the baseline logit enters as a calibration covariate, and three crossed random intercepts compete for the residual. The engine is now NUTS (numpyro) instead of variational Bayes, run on the shadow-zone subset with a non-centered parameterization.
 
-The covariate's coefficient is estimated rather than fixed, so strictly it is not an *offset*, which by definition has its coefficient held at 1. Fit freely on the 2021–2022 train pool, it comes out at **1.089, 95% interval [1.071, 1.107]**, which excludes 1. The extra freedom is useful: it absorbs the slope part of the S-shaped miscalibration in section 2 before the random effects see the residual.
-
-Fixing it at 1 and refitting barely changes anything. Per-catcher runs correlate at r = 0.9997, the largest single-catcher shift is 0.40 runs against a spread of 28.9, the top ten are the same ten, and P(τ_umpire > τ_catcher) stays at 0.46. So the offset assumption is wrong, but the results do not depend on it. This check was run on the train pool, since 2023 had already been used ([`models/sensitivity.py`](models/sensitivity.py), [`results/sensitivity_slope.csv`](results/sensitivity_slope.csv)).
-
-Switching engines did not change the estimates either. On identical data (2022, shadow zone), the two engines agree on per-catcher effects at r = 0.9999, and variational Bayes understates the posterior standard deviation by 5%. What NUTS adds is the joint posterior. The VB fit is mean-field: it gives each parameter its own mean and spread and treats them as independent, which drops the correlations that a probability like the one below depends on.
+The covariate's coefficient is estimated (1.089, with a 95% interval that excludes 1), so strictly it is not an offset; fixing it at 1 and refitting barely changes anything (METHODS §4.2). Switching engines did not change the estimates either: on identical 2022 data, NUTS and variational Bayes agree on per-catcher effects at r = 0.9999. What NUTS adds is the joint posterior, which a probability like the one below depends on.
 
 2023, the season v1 reported:
 
@@ -210,9 +200,9 @@ Every interval but the last covers zero, and so do the six pairs of seasons more
 
 The simulation separates the two estimators clearly on intervals (74% coverage against 93%) and more modestly on point estimates. The external checks only see point estimates. In the first eight rows they do not favor either estimator, and most could not have shown a gap anyway: the year-over-year intervals run from ±0.05 to ±0.09, and the 2021 Savant interval is ±0.04. The Savant intervals for 2022–2024, at ±0.02 to ±0.03, are tight enough to catch a real gap. 2022 leans slightly toward the unadjusted estimator, 2023 and 2024 slightly toward the hierarchical one.
 
-The 2025 row separates them, but not for the reason the simulation studies. The baseline was fit on 2021–2022 and never refit, and by 2025 it overpredicts called strikes by 2.6 points across the whole season (0.358 against 0.332; in 2023 and 2024 the gap is 0.6 to 0.8). Two unrelated things moved. In raw `plate_x`, the called zone is about 0.06 ft narrower than in 2024 for both batter sides; this data cannot tell whether the umpires or the tracking changed. And Statcast's `sz_top` has risen from 3.36 ft in 2023 to 3.44 ft, while the umpires' top edge in raw feet has stayed between 3.46 and 3.49. The overall log loss gave no warning (0.1693 in 2025, close to every other season), though log loss is not comparable across seasons; within 2025, correcting the intercept alone lowers it to 0.1633 (section 2).
+The 2025 row separates them, but not for the reason the simulation studies. The baseline was fit on 2021–2022 and never refit, and by 2025 it overpredicts called strikes by 2.6 points across the whole season (0.358 against 0.332; in 2023 and 2024 the gap is 0.6 to 0.8). The called zone narrowed in raw `plate_x`, and Statcast's `sz_top` rose. The overall log loss gave no warning, though log loss is not comparable across seasons anyway (METHODS §4.1).
 
-Unadjusted framing runs are the residual times the number of pitches times 0.125. There is no intercept, so a season-wide bias turns into a term proportional to playing time. Section 3 finds the same thing in 2023 at a quarter of the size. The mean shadow-zone residual in 2025 is −0.109, against −0.03 in 2023 and 2024, and unadjusted runs correlate −0.60 with the number of shadow-zone pitches a catcher caught, where Savant's correlate +0.18. The hierarchical model estimates its own intercept in every fit, and the bias goes there. Refitting two calibration parameters on 2025's own shadow zone brings the unadjusted estimator back to 0.964 against Savant. The year-over-year rows use per-pitch rates, which a uniform shift does not move, so they were unaffected. These checks were added after the 2025 row came in ([`results/baseline_transport.csv`](results/baseline_transport.csv), [`results/baseline_drift.csv`](results/baseline_drift.csv)).
+Unadjusted framing runs are the residual times the number of pitches times 0.125. There is no intercept, so a season-wide bias turns into a term proportional to playing time: in 2025, unadjusted runs correlate −0.60 with the number of shadow-zone pitches a catcher caught, where Savant's correlate +0.18. The hierarchical model estimates its own intercept in every fit, and the bias goes there. Refitting two calibration parameters on 2025's own shadow zone brings the unadjusted estimator back to 0.964 against Savant. The year-over-year rows use per-pitch rates, which a uniform shift does not move, so they were unaffected. These checks were added after the 2025 row came in ([`results/baseline_transport.csv`](results/baseline_transport.csv), [`results/baseline_drift.csv`](results/baseline_drift.csv)).
 
 What the row shows is narrow. The unadjusted estimator has nowhere to put a calibration error in its baseline, and a baseline three seasons old costs it 0.31 in agreement with Savant. It does not show that the hierarchical model measures framing better. Refitting the baseline every season, which is the usual practice, would most likely have prevented the drop.
 
@@ -235,19 +225,7 @@ The unadjusted estimator gives nearly the same numbers, as section 7 found (one-
 
 v1 read its three seasons as AR(1). Consecutive seasons correlated at 0.603 and a two-year gap dropped to 0.320, close to 0.603² = 0.364, so framing looked like a trait that drifts a little each year. That two-year figure rested on a single pair, 2021 → 2023, and with more seasons that pair turns out to be the lowest of three. The other two-year pairs sit at 0.54 and 0.59, about where the one-year pairs do, and 2022 → 2025 is still 0.47. Leaving 2021 aside, the correlations barely decay, which looks more like a stable trait measured with noise than like drift. With 2021 in, they decay. Each pair has only 30 to 48 catchers, so a correlation of 0.5 carries an interval of roughly ±0.25, and the catchers who last four seasons are not a random sample. The data do not settle which reading is right. They do show that v1's rested on the one pair least like the others.
 
-v1's pooled 2021–2023 fit gives steadier per-catcher numbers (Jose Trevino leads at +40 runs over the three years). The figures below come from it, with v1's in-sample baseline.
-
-<p align="center">
-  <img src="docs/images/en/persistence_matrix_2021_2023.png" width="360">
-  <img src="docs/images/en/pooled_leaderboard_2021_2023.png" width="430">
-</p>
-
-<p align="center">
-  <img src="docs/images/en/catcher_trajectories_2021_2023.png" width="480"><br>
-  <em>The strongest framers stay above zero all three years; the weakest stay below.</em>
-</p>
-
-v1 also refit the hierarchical model on all 1.04M modeling rows with effects shared across seasons, which gave its most stable per-catcher estimates. The three variance components come out close together there (τ ≈ 0.18–0.19), with umpire still nominally the largest. Section 4 reports the same three components with intervals, but on single seasons and on 2021–2022 rather than on all seasons pooled.
+v1's pooled 2021–2023 fit (Jose Trevino leading at +40 runs over three years), its persistence matrix and the catcher trajectories all use v1's in-sample baseline, and they remain in [v1's README](README-v1.md#6-three-seasons).
 
 ---
 
@@ -325,17 +303,12 @@ Environment is managed with [uv](https://docs.astral.sh/uv/). The full command s
 
 ## Limitations
 
-- **Associational, not causal.** The catcher term is variation associated with the catcher under this specification. Section 6 measures what unmeasured confounding does to it: coverage falls to 88% when a catcher-correlated confounder is as large as the catcher effect, and to 66% when it is twice as large. Nothing in the data can rule that out.
-- **Coverage at the extremes is 87–91%, not 95%**, in every simulated scenario, so the top and bottom of the leaderboard are less certain than their intervals suggest.
-- The simulation used 30 catchers with about 500 pitches each. Its coverage figures are not exact for full-season sample sizes.
+- **Associational, not causal.** The catcher term is variation associated with the catcher under this specification. Section 6 measures how far unmeasured confounding would throw off the intervals; nothing in the data can rule it out.
 - Pitch type, velocity, movement, batter identity and ballpark are not modeled. Savant adjusts for park; this project does not. Pitchers enter as a random effect, but low-volume pitchers share a single pooled effect (see below).
 - The count enters the baseline additively, so it shifts the zone without reshaping it. The reshaping is real, and shown by fitting each count separately, but it is not in the model that produces the framing numbers.
 - Pitches with |plate_x| > 2.5 ft, or outside a standardized height of [−1, 2], are dropped before modeling to keep the spline from extrapolating: about 2% of pitches, of which exactly 1 of 7,386 in 2023 was a called strike. They carry essentially no framing signal.
 - Pitchers with fewer than 100 shadow-zone pitches in the data being fitted share a single pooled effect: 749 of 1,123 pitchers (25% of pitches) in the 2021–2022 fit, and 47–49% of pitches in each of 2023, 2024 and 2025 (669 of 835 pitchers in 2023). Their individual effects would be heavily shrunk anyway, but for those pitches the model makes no pitcher-specific adjustment. (v1 pooled pitchers below 100 called pitches per season, and below 150 in its three-season fit.)
 - Run value is a flat 0.125 runs per stolen strike, as in v1. The real value depends on the count, and a strike stolen with two strikes already on the batter is worth far more than one stolen on 0-0, so per-catcher totals are approximate. A count-dependent value would leave the variance components, the separability figures and P(τ_umpire > τ_catcher) unchanged, since they are on the probability scale. It could reorder the run leaderboard, though, because catchers see different mixes of counts. That has not been checked.
-- Year-over-year stability now rests on ten season pairs (section 8), but each has only 30 to 48 catchers, and the shape of the decay depends on whether 2021 is included.
-- The baseline is fit once, on 2021–2022, and never refit. By 2025 it overpredicts the overall strike rate by 2.6 points (section 7). The hierarchical estimates absorb that through their intercept; the unadjusted ones do not.
-- The baseline model is mildly miscalibrated in the shadow zone (section 2). Correcting it moves the leaderboard by about 1% of its spread.
 
 ## References
 
