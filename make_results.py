@@ -233,6 +233,22 @@ def _shadow_check(name: str) -> pl.DataFrame | None:
     return pl.read_parquet(path)
 
 
+def _abs_tables() -> dict[str, pl.DataFrame]:
+    """ABS 後記的表。2026 還沒擬合時整組不寫，只列出該跑的指令。"""
+    import models.abs_era as ae
+
+    if _need(ae._fit_path(ae.ABS_SEASON, "abs"), "uv run python -m models.abs_era fit --zone abs") is None:
+        return {}
+    comp = ae.q1_comparison("abs").with_columns(verdict=pl.lit(ae.q1_verdict(ae.q1_comparison("abs"))))
+    zones = [z for z in ae.ZONES if ae._load(z)]
+    return {
+        "tau": pl.concat([ae.tau_table(z) for z in zones], how="diagonal"),
+        "q1_comparison": comp,
+        "persistence": pl.concat([ae.persistence(z) for z in zones]),
+        "baseline_check": ae.baseline_check(),
+    }
+
+
 # ---- 模擬 ----
 
 def _sim_table(path: Path, by: list[str]) -> pl.DataFrame:
@@ -312,6 +328,7 @@ def main() -> None:
         if df is None:
             return
         path = RESULTS_DIR / f"{name}.csv"
+        path.parent.mkdir(parents=True, exist_ok=True)
         df.write_csv(path, float_precision=6)
         written.append((name, df.height))
 
@@ -348,6 +365,10 @@ def main() -> None:
     write("baseline_transport", _baseline_transport())
     write("baseline_drift", _baseline_drift())
     write("savant_decomposition", _savant_decomposition())
+
+    # ABS 後記（models/abs_era.py），寫到 results/abs/
+    for name, df in _abs_tables().items():
+        write(f"abs/{name}", df)
 
     # METHODS §2.3、§4.1：原本是一次性的檢查
     for name in ("shadow_information", "baseline_calibration", "isotonic_shift"):
