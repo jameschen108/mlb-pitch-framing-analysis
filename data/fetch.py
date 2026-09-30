@@ -7,6 +7,8 @@
 - **快照**：每月原始資料存 data/raw/，已抓過的月份重跑時直接略過，可安全中斷續跑。
 - **清理**：只留主審判定球（called_strike / ball），標準化 plate_z，選欄位。
 - 清理後合併成單一季檔存 data/processed/。
+- 2026 起有 ABS 挑戰：`is_strike` 是主審原判，由 data/challenges.py 還原；
+  要先跑 `python -m data.challenges 2026`，否則不產生季檔。
 
 用法
 ----
@@ -41,6 +43,8 @@ KEEP_COLUMNS = [
     "game_date",
     "game_type",
     "game_pk",
+    "at_bat_number",  # 與 pitch_number 一起定位單顆球，2026 起對 ABS 挑戰紀錄要用
+    "pitch_number",
     "pitcher",
     "batter",
     "fielder_2",  # 捕手
@@ -159,6 +163,12 @@ def build_season(
         raise RuntimeError("沒有抓到任何資料")
 
     season_df = pl.concat(frames, how="vertical")
+
+    # 2026 起 Statcast 記的是 ABS 挑戰後的最終判決；is_strike 換回主審原判，
+    # 最終判決留在 is_strike_final（見 data/challenges.py）。沒有挑戰紀錄就停下來。
+    from data.challenges import ABS_FIRST_SEASON, attach_original_call
+    if season >= ABS_FIRST_SEASON:
+        season_df = attach_original_call(season_df, season)
 
     PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
     out = PROCESSED_DIR / f"statcast_{season}.parquet"
