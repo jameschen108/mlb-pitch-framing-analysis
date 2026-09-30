@@ -4,8 +4,8 @@ notebook 裡的圖是分析過程的產物（標籤是中文）；README 是給�
 英文版需要英文標籤。與其在 notebook 裡複製繪圖碼，這裡從既有的快取產物
 （processed parquet、baseline GAM pickle、階層模型 artifacts）重新畫一次。
 
-    uv run python make_figures.py          # 中英兩套
-    uv run python make_figures.py --lang en
+    uv run python -m scripts.make_figures          # 中英兩套
+    uv run python -m scripts.make_figures --lang en
 
 輸出：docs/images/en/、docs/images/zh/
 """
@@ -23,7 +23,7 @@ import polars as pl
 
 matplotlib.use("Agg")
 
-ROOT = Path(__file__).resolve().parent
+ROOT = Path(__file__).resolve().parent.parent
 PROCESSED = ROOT / "data" / "processed"
 ARTIFACTS = ROOT / "models" / "artifacts"
 

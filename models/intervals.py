@@ -22,7 +22,7 @@ repo 沒有任何一處用它，leaderboard、圖、README 全是點值。
   等大時 coverage 掉到 88%，兩倍時 66%。這不是能從資料裡查出來的，只能標明。
 
 圖由 `make_figures_v2.py` 產生（與 v1 的 `make_figures.py` 同樣的分工：分析在
-models/，作圖與雙語標籤在根目錄的 make_figures*.py）。
+models/，作圖與雙語標籤在 scripts/ 的 make_figures*.py）。
 
 用法
 ----

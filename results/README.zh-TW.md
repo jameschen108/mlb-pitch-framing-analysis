@@ -4,7 +4,7 @@
 
 文中的「第幾節」指 [README](../README.zh-TW.md) 結果段的節次。
 
-下面這些 CSV 由 `uv run python make_results.py` 從模型快取寫進這個目錄。這支程式不重新擬合任何東西；快取缺了就印出該跑哪一行指令，並跳過那張表。
+下面這些 CSV 由 `uv run python -m scripts.make_results` 從模型快取寫進這個目錄。這支程式不重新擬合任何東西；快取缺了就印出該跑哪一行指令，並跳過那張表。
 
 不在這些檔案裡的數字，由產生它的模組印出：2021 與 2022 的單季擬合與引擎對照在 [`models/compare_engines.py`](../models/compare_engines.py)，log loss 在 [`models/baseline_v2.py`](../models/baseline_v2.py)，METHODS §3 在 [`models/identify.py`](../models/identify.py)。v1 的數字來自 [`v1.0`](../../../tree/v1.0) 的模組。
 

@@ -3,8 +3,8 @@
 沿用 make_figures.py 的慣例：輸出到 docs/images/{en,zh}/，文字全部走 LABELS，
 圖形邏輯只寫一次。
 
-    uv run python make_figures_v2.py --lang both
-    uv run python make_figures_v2.py --only abs_tau   # 只畫 ABS 後記那張
+    uv run python -m scripts.make_figures_v2 --lang both
+    uv run python -m scripts.make_figures_v2 --only abs_tau   # 只畫 ABS 後記那張
 """
 
 from __future__ import annotations
@@ -16,7 +16,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import polars as pl
 
-ROOT = Path(__file__).resolve().parent
+ROOT = Path(__file__).resolve().parent.parent
 CJK_FONTS = ["PingFang TC", "Arial Unicode MS", "Heiti TC"]
 NOMINAL = 0.95
 

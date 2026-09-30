@@ -316,10 +316,10 @@ uv run python -m models.holdout --drift
 uv run python -m models.holdout --decompose
 uv run python -m models.shadow_checks
 
-uv run python make_figures_v2.py
+uv run python -m scripts.make_figures_v2
 
 # README 的每一張表，從上面的快取產生（不重新擬合）
-uv run python make_results.py
+uv run python -m scripts.make_results
 ```
 
 後記的指令在 [ABS.zh-TW.md §7](ABS.zh-TW.md#7-重現)。
@@ -357,9 +357,10 @@ models/
 sim/                   模擬研究：生成、估計、執行
 notebooks/             01_eda … 06_multiseason（v1）
 tests/                 不變量：資料清理、v1 效應對應、v2 估計式、ABS 原判還原（23 個測試，約 10 秒）
-make_figures.py        v1 的圖，中英兩套
-make_figures_v2.py     v2 的圖，中英兩套
-make_results.py        每一張發表的表，從快取輸出成 CSV
+scripts/
+  make_figures.py      v1 的圖，中英兩套
+  make_figures_v2.py   v2 的圖，中英兩套
+  make_results.py      每一張發表的表，從快取輸出成 CSV
 results/               那些 CSV（進版控；快取本身不進）
 docs/images/           en/ 與 zh/，兩份 README 各自使用
 .github/workflows/     CI：只跑合成資料的 pytest，不下載任何東西

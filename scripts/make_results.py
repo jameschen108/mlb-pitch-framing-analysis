@@ -10,7 +10,7 @@
 
 用法
 ----
-    uv run python make_results.py
+    uv run python -m scripts.make_results
 """
 
 from __future__ import annotations
@@ -25,8 +25,8 @@ import polars as pl
 from models.baseline_gam import ARTIFACT_DIR
 from models.intervals import RUN_VALUE, leaderboard, separability
 
-RESULTS_DIR = Path(__file__).resolve().parent / "results"
-SIM_DIR = Path(__file__).resolve().parent / "sim" / "results"
+RESULTS_DIR = Path(__file__).resolve().parent.parent / "results"
+SIM_DIR = Path(__file__).resolve().parent.parent / "sim" / "results"
 THRESHOLDS = (0, 500, 1000)
 ETI = (2.5, 97.5)          # 95% 等尾區間，與全文其他區間一致
 

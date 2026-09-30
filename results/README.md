@@ -4,7 +4,7 @@
 
 Section numbers refer to the Results sections of the [README](../README.md).
 
-The CSVs below are written to this directory from cached model output by `uv run python make_results.py`. That script refits nothing; if a cache is missing, it names the command that rebuilds it and skips the table.
+The CSVs below are written to this directory from cached model output by `uv run python -m scripts.make_results`. That script refits nothing; if a cache is missing, it names the command that rebuilds it and skips the table.
 
 Numbers not in these files are printed by the module that produces them: the 2021 and 2022 single-season fits and the engine comparison by [`models/compare_engines.py`](../models/compare_engines.py), the log loss by [`models/baseline_v2.py`](../models/baseline_v2.py), and METHODS §3 by [`models/identify.py`](../models/identify.py). v1's numbers come from its own modules at [`v1.0`](../../../tree/v1.0).
 

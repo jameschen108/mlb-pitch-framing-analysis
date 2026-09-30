@@ -27,4 +27,4 @@ jobs:
       # make_results.py 在快取缺席時應該乾淨退出、列出該跑哪些指令，而不是 traceback。
       # CI 上一個快取都沒有，所以這一步正好測到那條路徑。
       - name: make_results degrades cleanly without caches
-        run: uv run python make_results.py
+        run: uv run python -m scripts.make_results

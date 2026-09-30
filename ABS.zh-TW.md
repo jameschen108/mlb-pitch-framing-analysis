@@ -136,6 +136,6 @@ uv run python -m models.abs_era fit --zone abs
 uv run python -m models.abs_era fit --zone stance
 uv run python -m models.abs_era report
 
-uv run python make_figures_v2.py --only abs_tau
-uv run python make_results.py
+uv run python -m scripts.make_figures_v2 --only abs_tau
+uv run python -m scripts.make_results
 ```

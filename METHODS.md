@@ -316,10 +316,10 @@ uv run python -m models.holdout --drift
 uv run python -m models.holdout --decompose
 uv run python -m models.shadow_checks
 
-uv run python make_figures_v2.py
+uv run python -m scripts.make_figures_v2
 
 # every table in the README, from the caches above (refits nothing)
-uv run python make_results.py
+uv run python -m scripts.make_results
 ```
 
 The postscript's commands are in [ABS.md §7](ABS.md#7-reproduce).
@@ -357,9 +357,10 @@ models/
 sim/                   simulation study: generate, estimate, run
 notebooks/             01_eda … 06_multiseason (v1)
 tests/                 invariants: cleaning, v1 effect mapping, v2 estimator, ABS call recovery (23 tests, ~10s)
-make_figures.py        v1 figures, both languages
-make_figures_v2.py     v2 figures, both languages
-make_results.py        every published table, as CSV, from cached fits
+scripts/
+  make_figures.py      v1 figures, both languages
+  make_figures_v2.py   v2 figures, both languages
+  make_results.py      every published table, as CSV, from cached fits
 results/               those CSVs (version-controlled; the caches are not)
 docs/images/           en/ and zh/ figures used by the two READMEs
 .github/workflows/     CI: pytest on synthetic data, no downloads
