@@ -4,6 +4,7 @@
 圖形邏輯只寫一次。
 
     uv run python make_figures_v2.py --lang both
+    uv run python make_figures_v2.py --only abs_tau   # 只畫 ABS 後記那張
 """
 
 from __future__ import annotations
@@ -19,7 +20,7 @@ ROOT = Path(__file__).resolve().parent
 CJK_FONTS = ["PingFang TC", "Arial Unicode MS", "Heiti TC"]
 NOMINAL = 0.95
 
-COLOR = {"hierarchical": "#1f77b4", "residual_runs": "#d62728"}
+COLOR = {"hierarchical": "#1f77b4", "residual_runs": "#d62728", "abs": "#d95f02"}
 
 LABELS = {
     "en": {
@@ -37,6 +38,11 @@ LABELS = {
         "cat_y": "Extra called strikes per 100 shadow-zone pitches",
         "cat_note": ("Simulation puts coverage at the extremes at 87–91%, not 95% — shrinkage pulls "
                      "the ends in, so the top and bottom are less firm than they look."),
+        "abs_title": "Catcher-to-catcher variation in umpires' original calls, by season",
+        "abs_y": "τ catcher (logit scale), 95% interval",
+        "abs_groups": ("baseline period", "may have\nadjusted early", "ABS\nchallenges"),
+        "abs_note": ("Umpire's call before any challenge. Strike zone from batter height in every season; "
+                     "baseline refit within each season."),
         "scenarios": {
             "baseline": "baseline", "unequal": "unequal workloads",
             "umpire_confound": "umpire confounding", "battery": "battery pairing",
@@ -58,6 +64,10 @@ LABELS = {
         "cat_x": "捕手（依估計效果排序，{n} 位中有 {k} 位的區間不含零）",
         "cat_y": "每 100 顆 shadow zone 球的額外好球數",
         "cat_note": "模擬顯示兩端的涵蓋率只有 87–91%，而非 95%：收縮把極端往內拉，上下兩端比看起來的更不確定。",
+        "abs_title": "主審原判中捕手之間的差異，逐季",
+        "abs_y": "τ 捕手（logit 尺度），95% 區間",
+        "abs_groups": ("基準期", "可能已提前調整", "ABS 挑戰上路"),
+        "abs_note": "主審在挑戰之前的原判。每一季都用身高定義好球帶，基準模型在各季內重新擬合。",
         "scenarios": {
             "baseline": "基準", "unequal": "樣本不均",
             "umpire_confound": "主審混淆", "battery": "投捕綁定",
@@ -166,13 +176,50 @@ def caterpillar(L, out: Path) -> None:
     fig.savefig(out / "caterpillar_2023.png", dpi=170); plt.close(fig)
 
 
-def build(lang: str) -> None:
+def abs_tau(L, out: Path) -> None:
+    """ABS 後記：各季 τ_catcher，原判、ABS 好球帶、逐季基準模型（models/abs_era.py）。"""
+    from models.abs_era import ABS_SEASON, ANTICIPATION_SEASON, tau_table
+    t = tau_table("abs").filter(pl.col("group") == "catcher").sort("season")
+    s = t["season"].to_numpy()
+    m, lo, hi = (t[c].to_numpy() for c in ("tau_mean", "tau_eti_lo", "tau_eti_hi"))
+
+    fig, ax = plt.subplots(figsize=(7.4, 4.6))
+    for i, season in enumerate(s):
+        col = COLOR["abs"] if season == ABS_SEASON else COLOR["hierarchical"]
+        hollow = season == ANTICIPATION_SEASON
+        ax.vlines(season, lo[i], hi[i], color=col, lw=2, zorder=2)
+        ax.scatter(season, m[i], s=64, zorder=3, color="white" if hollow else col,
+                   edgecolor=col, linewidth=2)
+    ax.annotate(f"{m[-1]:.3f}", (s[-1], m[-1]), xytext=(9, 0), textcoords="offset points",
+                va="center", fontsize=9, color="#333")
+    ymin = lo.min() - 0.035
+    for (a, b), text in zip(((s[0], ANTICIPATION_SEASON - 1), (ANTICIPATION_SEASON,) * 2,
+                             (ABS_SEASON,) * 2), L["abs_groups"]):
+        ax.plot([a - 0.3, b + 0.3], [ymin + 0.012] * 2, color="#999", lw=1)
+        ax.text((a + b) / 2, ymin, text, ha="center", va="top", fontsize=8.5, color="#555")
+    ax.set_xticks(s); ax.set_xlim(s[0] - 0.6, s[-1] + 0.8)
+    ax.set_ylim(ymin - 0.03, hi.max() + 0.02)
+    ax.set_ylabel(L["abs_y"]); ax.set_title(L["abs_title"], fontsize=11.5, pad=11)
+    ax.grid(axis="y", alpha=0.25, lw=0.6)
+    for sp in ("top", "right"):
+        ax.spines[sp].set_visible(False)
+    fig.tight_layout(rect=(0, 0.06, 1, 1))
+    fig.text(0.5, 0.02, L["abs_note"], ha="center", va="bottom", fontsize=8, color="#666")
+    fig.savefig(out / "abs_tau_by_season.png", dpi=170); plt.close(fig)
+
+
+FIGURES = {"sweep": sweep, "coverage": coverage, "caterpillar": caterpillar, "abs_tau": abs_tau}
+
+
+def build(lang: str, only: list[str] | None = None) -> None:
     L = LABELS[lang]
     out = ROOT / "docs" / "images" / lang
     out.mkdir(parents=True, exist_ok=True)
     use_style(lang)
     print(f"[{lang}]")
-    for fn in (sweep, coverage, caterpillar):
+    for name, fn in FIGURES.items():
+        if only and name not in only:
+            continue
         fn(L, out)
         print(f"  {fn.__name__}")
 
@@ -182,6 +229,7 @@ if __name__ == "__main__":
     os.environ.setdefault("XLA_FLAGS", "--xla_force_host_platform_device_count=4")
     p = argparse.ArgumentParser()
     p.add_argument("--lang", choices=["en", "zh", "both"], default="both")
+    p.add_argument("--only", nargs="+", choices=list(FIGURES), help="只畫這幾張")
     a = p.parse_args()
     for lang in (["en", "zh"] if a.lang == "both" else [a.lang]):
-        build(lang)
+        build(lang, a.only)
