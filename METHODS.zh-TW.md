@@ -272,8 +272,95 @@ bias、RMSE、95% 區間涵蓋率、排名還原度（對真實排序的 Spearma
 
 ## 9. 重現性
 
-指令序列見 [`README.zh-TW.md`](README.zh-TW.md)。v1 的流程沒有改動，仍然可以執行，指令在 [`v1.0`](../../tree/v1.0) tag。
+環境用 [uv](https://docs.astral.sh/uv/) 管理。v1 的流程沒有改動，指令見 [`v1.0`](../../tree/v1.0)。這一輪新增：
 
-種子固定：切分與 cross-fitting 的 fold 用 `20260906`，模擬抽樣用重複次數的索引。資料檔、模型快取與模擬輸出不進版控，可以用文件列出的指令重新產生。發表的表格另外寫成 [`results/`](results/) 底下的版控 CSV，不必重新擬合就能查證；哪些數字是由模組印出、沒有匯出，README 裡有列。
+```bash
+uv sync
+
+# 2021–2022 的 out-of-fold 基準機率（約 20 分鐘，有快取）
+uv run python -m models.crossfit
+
+# 基準模型的樣本外評分
+uv run python -m models.baseline_v2
+
+# 後驗區間與成對比較
+uv run python -m models.intervals
+
+# 模擬：八情境 × 100 次重複（約 2 小時），然後是混淆強度掃描
+uv run python -m sim.run 100
+uv run python -m sim.run sweep 50
+
+# 敏感度：b 自由 vs b=1，再加兩個替代的 shadow zone 門檻；
+# 在 train pool 上擬合四次（約 30–40 分鐘）
+uv run python -m models.sensitivity
+
+# 2023（只擬合一次）
+uv run python -m models.holdout
+
+# 2024–2025：逐球資料、主審、Savant 榜單，然後每季擬合一次
+uv run python -m data.fetch --season 2024
+uv run python -m data.fetch --season 2025
+uv run python -m data.umpires 2024 2025
+uv run python -m data.official 2024 2025
+uv run python -m models.holdout --season 2024
+uv run python -m models.holdout --season 2025
+
+# 外部驗證：2021–2025 每一對球季，以及逐季對照 Savant
+uv run python -m models.validate
+
+# train-only 基準模型搬到之後各季的表現，以及 2025 那一列的檢查（第 7 節）
+uv run python -m models.holdout --transport
+uv run python -m models.holdout --drift
+
+# 第 3 節的拆解，以及 METHODS §2.3、§4.1（shadow zone 的資訊量、校準、isotonic 位移）
+uv run python -m models.holdout --decompose
+uv run python -m models.shadow_checks
+
+uv run python make_figures_v2.py
+
+# README 的每一張表，從上面的快取產生（不重新擬合）
+uv run python make_results.py
+```
+
+後記的指令在 [ABS.zh-TW.md §7](ABS.zh-TW.md#7-重現)。
+
+種子固定：切分與 cross-fitting 的 fold 用 `20260906`，模擬抽樣用重複次數的索引。資料檔、模型快取與模擬輸出不進版控，可以用文件列出的指令重新產生。發表的表格另外寫成 [`results/`](results/) 底下的版控 CSV，不必重新擬合就能查證；哪些數字是由模組印出、沒有匯出，[`results/README.zh-TW.md`](results/README.zh-TW.md) 裡有列。
 
 **測試**（[`tests/`](tests/)，共 23 個，約十秒，不下載任何東西）。其中 8 個是 v1 的：資料清理與標籤、標準化與 Spearman–Brown 公式，以及混合模型的效應有沒有對到正確的組別。v2 的 9 個守的是三件會安靜出錯、不會報錯的事。第一，cross-fitting 的 fold 與 train/validation 切分都不會把同一場拆開，這正是樣本外基準機率的前提。第二，逐抽樣的 Δ 計算要對得上手算結果，而且每位捕手要拿到自己的效應；這裡一旦錯位，每個人都會拿到別人的數字，程式卻不會報錯。第三，固定種子下 NUTS 要能在合成資料上還原已知參數。這是唯一一個會在 v2 模型本身被改動時抓到問題的檢查，例如改成中心化參數化、先驗寫錯，或 `logit_base` 接錯。另外 6 個是為 ABS 後記加的（[`ABS.zh-TW.md`](ABS.zh-TW.md)）：確認被推翻的判決會被翻回主審原判，以及挑戰紀錄缺漏或對不上時，流程會停下來而不是靜默通過。CI 每次 push 都會跑。
+
+**專案結構**
+
+```
+data/
+  fetch.py             按月抓 Statcast、清理、標準化
+  umpires.py           每場主審（MLB Stats API）
+  challenges.py        2026 的 ABS 挑戰紀錄，用來還原主審原判
+  heights.py           打者身高，每一季都換成以身高定義的好球帶
+  official.py          Baseball Savant framing 榜單（對照用）
+models/
+  baseline_gam.py      v1 第一層 GAM 好球機率模型
+  framing_runs.py      v1 未調整殘差 framing runs
+  hierarchical.py      v1 兩階段交叉隨機效應模型（VB）
+  reliability.py       split-half 與跨季信度
+  splits.py            依場次切訓練／驗證，2023 保留
+  baseline_v2.py       訓練集擬合、樣本外評分的基準模型
+  crossfit.py          out-of-fold 基準機率
+  hierarchical_v2.py   交叉隨機效應，NUTS 跑在 shadow zone
+  compare_engines.py   VB 對 NUTS、季別穩定性
+  intervals.py         後驗區間與成對比較機率
+  identify.py          識別性診斷
+  validate.py          跨季與 Savant 對照
+  sensitivity.py       b 自由 vs 固定為 1、shadow zone 門檻
+  holdout.py           2023–2025，各擬合一次；基準模型的校準與漂移
+  shadow_checks.py     shadow zone 的資訊量、校準分箱、isotonic 位移
+  abs_era.py           後記：ABS 好球帶下 2021–2026 逐季擬合
+sim/                   模擬研究：生成、估計、執行
+notebooks/             01_eda … 06_multiseason（v1）
+tests/                 不變量：資料清理、v1 效應對應、v2 估計式、ABS 原判還原（23 個測試，約 10 秒）
+make_figures.py        v1 的圖，中英兩套
+make_figures_v2.py     v2 的圖，中英兩套
+make_results.py        每一張發表的表，從快取輸出成 CSV
+results/               那些 CSV（進版控；快取本身不進）
+docs/images/           en/ 與 zh/，兩份 README 各自使用
+.github/workflows/     CI：只跑合成資料的 pytest，不下載任何東西
+```
