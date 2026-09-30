@@ -225,7 +225,7 @@ The unadjusted estimator gives nearly the same numbers, as section 7 found (one-
 
 v1 read its three seasons as AR(1). Consecutive seasons correlated at 0.603 and a two-year gap dropped to 0.320, close to 0.603² = 0.364, so framing looked like a trait that drifts a little each year. That two-year figure rested on a single pair, 2021 → 2023, and with more seasons that pair turns out to be the lowest of three. The other two-year pairs sit at 0.54 and 0.59, about where the one-year pairs do, and 2022 → 2025 is still 0.47. Leaving 2021 aside, the correlations barely decay, which looks more like a stable trait measured with noise than like drift. With 2021 in, they decay. Each pair has only 30 to 48 catchers, so a correlation of 0.5 carries an interval of roughly ±0.25, and the catchers who last four seasons are not a random sample. The data do not settle which reading is right. They do show that v1's rested on the one pair least like the others.
 
-v1's pooled 2021–2023 fit (Jose Trevino leading at +40 runs over three years), its persistence matrix and the catcher trajectories all use v1's in-sample baseline, and they remain in [v1's README](README-v1.md#6-three-seasons).
+v1's pooled 2021–2023 fit (Jose Trevino leading at +40 runs over three years), its persistence matrix and the catcher trajectories all use v1's in-sample baseline, and they remain in [v1's README](../../blob/v1.0/README.md#6-three-seasons).
 
 ---
 
