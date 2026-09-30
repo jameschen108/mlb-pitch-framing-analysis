@@ -29,7 +29,7 @@
 
 ## 資料與設計
 
-2021–2023 例行賽，只取判定球（`called_strike` / `ball`）：106 萬顆，剔除極端座標後剩 104 萬顆。逐球資料透過 `pybaseball` 取自 Statcast；主審來自 MLB Stats API，以 `game_pk` join。2024 與 2025（71 萬顆判定球）是 v2 定案之後才加入的兩個評估季，不進訓練資料。2026 年是刻意排除的：ABS 挑戰制度自該季上路，改變了 framing 這個數字的意義。
+2021–2023 例行賽，只取判定球（`called_strike` / `ball`）：106 萬顆，剔除極端座標後剩 104 萬顆。逐球資料透過 `pybaseball` 取自 Statcast；主審來自 MLB Stats API，以 `game_pk` join。2024 與 2025（71 萬顆判定球）是 v2 定案之後才加入的兩個評估季，不進訓練資料。2026 年是刻意排除在 v2 之外的：ABS 挑戰制度自該季上路，改變了 framing 這個數字的意義。後記另外處理這一季。
 
 有三個設計決定最要緊。
 
@@ -281,7 +281,23 @@ v1 也在全部 104 萬列建模資料上重跑過階層模型，效應跨三季
 
 這一輪我留了一份有日期的工作日誌，走錯的路也都記著。日誌沒有公開；技術上的教訓整理在 METHODS §8。
 
-下一步我會想看 ABS 挑戰制度的年代。2026 年在這裡被排除，是因為那一季判決的方式變了；但規則改變時 framing 這個數字會怎麼變化，是更有意思的問題。
+下一步我會想看 ABS 挑戰制度的年代。2026 年在這裡被排除，是因為那一季判決的方式變了；但規則改變時 framing 這個數字會怎麼變化，是更有意思的問題。下面的後記是第一步。
+
+---
+
+## 後記：ABS 時代
+
+v2 止於 2025。2026 年 ABS 挑戰制度上路，上面最後一段提的問題可以拿真實資料來問了：當任何判決都可能被挑戰，主審的判決還會不會隨捕手而不同？完整的分析在 [ABS.zh-TW.md](ABS.zh-TW.md)。它用的是和上面所有內容不同的流程，所以同一季在那裡的 τ 可能不一樣。
+
+有兩件事得先改。Statcast 記的是挑戰之後的判決，被推翻的 4,431 次都沒有標記，所以主審的原判要從 MLB 比賽資料中的挑戰紀錄還原。落在判定球上的 7,891 次挑戰全部對上，最終判決也每一次都一致。另外，2026 改用打者身高定義好球帶，所以每一季都換成這個定義，基準模型也在各季內重新擬合。
+
+<p align="center">
+  <img src="docs/images/zh/abs_tau_by_season.png" width="560">
+</p>
+
+照擬合任何 2026 模型之前寫下的規則，這個變化偵測不到。2026 是六季中捕手差異最小的一季（τ = 0.155），比 2022、2023、2024 低的機率都超過 0.95，但比 2021 低的機率只有 0.87，而規則要求四季全部過門檻。更重要的是，下降從 2023 就開始了，早於 ABS，而且 2025 和 2026 分不開。所有球隊同時改制、沒有對照組，這個設計說不出 ABS 有沒有造成影響；就算 τ 變小，也說不出是主審變了還是捕手變了。
+
+接下來還有兩個問題：挑戰之後 framing 還剩多少價值，以及挑戰本身是不是捕手的一項技能。
 
 ---
 
@@ -326,6 +342,7 @@ v1 的模組（`baseline_gam.py`、`framing_runs.py`、`hierarchical.py`、`reli
 | [`shadow_information.csv`](results/shadow_information.csv) | shadow zone 佔的球數與 Fisher information 比例，以及標準誤的放大倍數（METHODS §2.3） |
 | [`baseline_calibration.csv`](results/baseline_calibration.csv) | 第 2 節：shadow zone 內各分箱的樣本外校準 |
 | [`isotonic_shift.csv`](results/isotonic_shift.csv) | 第 2 節：isotonic 重新校準後，每位捕手的 runs 移動多少 |
+| [`abs/`](results/abs/) | 後記的表：各季與兩種好球帶定義下的 τ、2026 的比較、持續性、逐季基準模型的檢查 |
 | [`baseline_drift.csv`](results/baseline_drift.csv) | 第 7 節：各季的好球帶邊緣，以及 2025 那一列的檢查 |
 | [`sim_coverage.csv`](results/sim_coverage.csv) | 第 6 節的八情境 × 兩個估計式 |
 | [`sim_confound_sweep.csv`](results/sim_confound_sweep.csv) | 混淆強度掃描 |
@@ -386,7 +403,7 @@ uv run python make_figures_v2.py
 uv run python make_results.py
 ```
 
-資料檔、模型快取與模擬輸出都不進版控；上面的指令可以全部重生。
+資料檔、模型快取與模擬輸出都不進版控；上面的指令可以全部重生。後記的指令在 [ABS.zh-TW.md §7](ABS.zh-TW.md#7-重現)。
 
 ## 專案結構
 
@@ -394,6 +411,8 @@ uv run python make_results.py
 data/
   fetch.py             按月抓 Statcast、清理、標準化
   umpires.py           每場主審（MLB Stats API）
+  challenges.py        2026 的 ABS 挑戰紀錄，用來還原主審原判
+  heights.py           打者身高，每一季都換成以身高定義的好球帶
   official.py          Baseball Savant framing 榜單（對照用）
 models/
   baseline_gam.py      v1 第一層 GAM 好球機率模型
@@ -411,9 +430,10 @@ models/
   sensitivity.py       b 自由 vs 固定為 1、shadow zone 門檻
   holdout.py           2023–2025，各擬合一次；基準模型的校準與漂移
   shadow_checks.py     shadow zone 的資訊量、校準分箱、isotonic 位移
+  abs_era.py           後記：ABS 好球帶下 2021–2026 逐季擬合
 sim/                   模擬研究：生成、估計、執行
 notebooks/             01_eda … 06_multiseason（v1）
-tests/                 不變量：資料清理、v1 效應對應、v2 估計式（17 個測試，約 10 秒）
+tests/                 不變量：資料清理、v1 效應對應、v2 估計式、ABS 原判還原（23 個測試，約 10 秒）
 make_figures.py        v1 的圖，中英兩套
 make_figures_v2.py     v2 的圖，中英兩套
 make_results.py        每一張發表的表，從快取輸出成 CSV

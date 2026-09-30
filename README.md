@@ -29,7 +29,7 @@ The last row is why I started this round, and it turned out not to matter.
 
 ## Data and design
 
-2021–2023 regular seasons, called pitches only (`called_strike` / `ball`): 1.06M pitches, 1.04M after a coordinate trim. Pitch data comes from Statcast via `pybaseball`; home-plate umpires come from the MLB Stats API, joined on `game_pk`. 2024 and 2025 (0.71M called pitches) were added after v2 was locked, as two more evaluation seasons; they do not enter the training data. 2026 is left out on purpose: the ABS challenge system went live that season, and it changes what a framing number means.
+2021–2023 regular seasons, called pitches only (`called_strike` / `ball`): 1.06M pitches, 1.04M after a coordinate trim. Pitch data comes from Statcast via `pybaseball`; home-plate umpires come from the MLB Stats API, joined on `game_pk`. 2024 and 2025 (0.71M called pitches) were added after v2 was locked, as two more evaluation seasons; they do not enter the training data. 2026 is left out of v2 on purpose: the ABS challenge system went live that season, and it changes what a framing number means. The postscript takes it up separately.
 
 Three design decisions matter most.
 
@@ -281,7 +281,23 @@ Three of my simulation designs tested nothing. A location-varying catcher effect
 
 I kept a dated working log through this round, wrong turns included. It is not published; the technical lessons are in METHODS §8.
 
-Next I would look at the ABS challenge era. 2026 was excluded here because the way calls are made changed that season, but how a framing number behaves when the rules change under it is the more interesting question.
+Next I would look at the ABS challenge era. 2026 was excluded here because the way calls are made changed that season, but how a framing number behaves when the rules change under it is the more interesting question. The postscript below is a first pass at it.
+
+---
+
+## Postscript: the ABS era
+
+v2 ends with 2025. In 2026 the ABS challenge system went live, and the question in the last paragraph above could be asked of real data: once any call can be challenged, do umpires' calls still vary with the catcher? The full analysis is in [ABS.md](ABS.md). It uses a different pipeline from everything above, so the same season can carry a different τ there.
+
+Two things had to change first. Statcast records the call after any challenge and marks none of the 4,431 that were overturned, so the umpire's original call was recovered from the challenge records in MLB's game feed. Every one of the 7,891 challenges on called pitches matched, with the final call agreeing each time. And 2026 redefined the strike zone from the batter's height, so every season was converted to that definition, with the baseline model refit inside each season.
+
+<p align="center">
+  <img src="docs/images/en/abs_tau_by_season.png" width="560">
+</p>
+
+By the rule written down before any 2026 fit, the change is not detectable. 2026 has the lowest catcher variation of the six seasons (τ = 0.155). It sits below 2022, 2023 and 2024 with probability above 0.95, but below 2021 with only 0.87, and the rule needed all four. The more important point is that the decline began in 2023, before ABS, and 2025 cannot be told apart from 2026. With every team switching at once and no control group, this design cannot say whether ABS did anything. A smaller τ would not say whether umpires or catchers had changed either.
+
+Two questions are left for next: how much framing value survives the challenges, and whether challenging is itself a catcher skill.
 
 ---
 
@@ -326,6 +342,7 @@ Numbers not in these files are printed by the module that produces them: the 202
 | [`shadow_information.csv`](results/shadow_information.csv) | the shadow zone's share of pitches and of Fisher information, and the standard-error factor (METHODS §2.3) |
 | [`baseline_calibration.csv`](results/baseline_calibration.csv) | section 2's calibration bins across the shadow zone, out of fold |
 | [`isotonic_shift.csv`](results/isotonic_shift.csv) | section 2's isotonic recalibration: how far per-catcher runs move |
+| [`abs/`](results/abs/) | the postscript's tables: τ by season and zone definition, the 2026 comparison, persistence, the per-season baseline check |
 | [`baseline_drift.csv`](results/baseline_drift.csv) | section 7: zone edges by season, and the checks on the 2025 row |
 | [`sim_coverage.csv`](results/sim_coverage.csv) | section 6's eight scenarios × two estimators |
 | [`sim_confound_sweep.csv`](results/sim_confound_sweep.csv) | the confounder-strength sweep |
@@ -386,7 +403,7 @@ uv run python make_figures_v2.py
 uv run python make_results.py
 ```
 
-Data files, model caches and simulation output are not version-controlled; the commands regenerate them.
+Data files, model caches and simulation output are not version-controlled; the commands regenerate them. The postscript's commands are in [ABS.md §7](ABS.md#7-reproduce).
 
 ## Project structure
 
@@ -394,6 +411,8 @@ Data files, model caches and simulation output are not version-controlled; the c
 data/
   fetch.py             monthly Statcast fetch, cleaning, standardization
   umpires.py           home-plate umpire per game (MLB Stats API)
+  challenges.py        2026 ABS challenges, to recover the umpire's original call
+  heights.py           batter heights, for the height-based zone in every season
   official.py          Baseball Savant framing leaderboard (comparison)
 models/
   baseline_gam.py      v1 first-stage GAM strike-probability model
@@ -411,9 +430,10 @@ models/
   sensitivity.py       b free vs fixed at 1, shadow-zone thresholds
   holdout.py           2023–2025, one fit each; baseline calibration and drift
   shadow_checks.py     shadow-zone information, calibration bins, isotonic shift
+  abs_era.py           the postscript: per-season fits on the ABS zone, 2021–2026
 sim/                   simulation study: generate, estimate, run
 notebooks/             01_eda … 06_multiseason (v1)
-tests/                 invariants: cleaning, v1 effect mapping, v2 estimator (17 tests, ~10s)
+tests/                 invariants: cleaning, v1 effect mapping, v2 estimator, ABS call recovery (23 tests, ~10s)
 make_figures.py        v1 figures, both languages
 make_figures_v2.py     v2 figures, both languages
 make_results.py        every published table, as CSV, from cached fits
