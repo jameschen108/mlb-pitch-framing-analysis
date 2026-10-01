@@ -23,8 +23,6 @@ The original analysis is unchanged and still available at tag [`v1.0`](../../tre
 | r = 0.990 against Savant shows the location model is sound | **The conclusion holds, but section 2 is what shows it.** The 0.990 depends on the baseline having the season's overall strike rate right, which one re-estimated intercept restores (0.989), and the correlation cannot see interval calibration, which is where the two estimators differ most |
 | The variational fit behind all of this had not converged | **Harmless.** Refit with NUTS on the same 2022 data, per-catcher effects correlate with the VB fit at r = 0.9999 |
 
-The last row is why I started this round, and it turned out not to matter.
-
 ---
 
 ## Data and design
@@ -37,7 +35,7 @@ Three design decisions matter most.
 
 **Analysis restricted to the shadow zone.** Here that means a band defined by the model: the pitches the baseline puts at 0.2 < p̂ < 0.8. It is not Statcast's Shadow Zone, which is geometric, one ball-width either side of the rule-book edge. Framing can only matter where the call is in doubt, and the numbers bear that out. Measured on 2023 with v1's baseline, the band holds 14.5% of called pitches but 60.8% of the Fisher information about a catcher's effect, because information scales with p(1−p) and a pitch down the middle carries almost none. (With the v2 baseline the band holds 15% of pitches.) Standard errors grow by a factor of 1.28, not the 2.6 the raw pitch counts would suggest ([`results/shadow_information.csv`](results/shadow_information.csv)).
 
-**2023 locked for all of v2; its model fit once.** Model form, threshold, inference engine, estimand and the list of reported quantities were all settled on 2021–2022 before 2023 was touched. The hierarchical model was fit on it a single time, at the end, so the new numbers could be compared with v1's published 2023 table. Later diagnostics read that fit's posterior and scored the baseline on 2023's pitches, without refitting the model or informing any choice (METHODS §2.4). That makes it a locked evaluation set rather than an untouched holdout. v1 had already analyzed 2023 and published on it, and that table is the reason this round uses the season at all. The lock means no v2 decision was tuned on 2023. It does not make 2023 unseen. 2024 and 2025 were fetched only after every decision was made, so they are cleaner still, and each was fit once on the same path.
+**2023 locked for all of v2; its model fit once.** Every design decision was settled on 2021–2022 before 2023 was touched, and the single fit exists to compare against v1's published 2023 table. Since v1 had already analyzed the season, it is a locked evaluation set rather than an untouched holdout (METHODS §2.4). 2024 and 2025 were fetched only after every decision was made, so they are cleaner still.
 
 ---
 
@@ -91,7 +89,7 @@ v1's main external check was the correlation between its unadjusted leaderboard 
 
 Moving to an out-of-sample baseline costs 0.032; re-estimating a single number on 2023, the baseline's intercept, brings the correlation back to 0.989. The out-of-sample baseline overpredicts 2023's overall strike rate by 0.8 points, and unadjusted framing runs have no intercept, so a season-wide offset becomes a term proportional to playing time (section 7). Most of what separated v1's in-sample baseline from an out-of-sample one was therefore the season's overall strike rate, which Savant, presumably fitting within season, also has right. 2024 and 2025 behave the same way: with the intercept re-estimated, the unadjusted estimator reaches 0.990 and 0.988 against Savant.
 
-Restricting to the shadow zone then costs 0.029, and switching to the hierarchical model another 0.018. That last step is the important one, because this correlation cannot see where the two estimators differ most. Under confounding, the unadjusted estimator's nominal 95% intervals cover as little as 74% of the time, while the hierarchical model's stay between 92.9% and 95.6%; the point estimates differ less, with the hierarchical model's RMSE about 40% lower (section 6). The 0.018 itself is within the noise of this check: the paired interval on 2023 is about ±0.026 wide. So the correlation is not evidence that an estimator is sound. One intercept moves it by 0.031; the choice of estimator moves it by less, and by an amount the check cannot distinguish from zero. v1's README already said the agreement was not independent confirmation, since it reflects a shared method.
+Restricting to the shadow zone then costs 0.029, and switching to the hierarchical model another 0.018. That last step is the important one, because this correlation cannot see where the two estimators differ most. Under confounding, the unadjusted estimator's nominal 95% intervals cover as little as 74% of the time, while the hierarchical model's stay between 92.9% and 95.6%; the point estimates differ less, with the hierarchical model's RMSE about 40% lower (section 6). The 0.018 itself is within the noise of this check: the paired interval on 2023 is about ±0.026 wide. So the correlation is not evidence that an estimator is sound. One intercept moves it by 0.031; the choice of estimator moves it by less, and by an amount the check cannot distinguish from zero. v1's README already said the agreement could not independently confirm that either method had isolated real catcher skill.
 
 <p align="center">
   <img src="docs/images/en/framing_vs_official_2023.png" width="440">
@@ -259,13 +257,11 @@ Three of my simulation designs tested nothing. A location-varying catcher effect
 
 I kept a dated working log through this round, wrong turns included. It is not published; the technical lessons are in METHODS §8.
 
-Next I would look at the ABS challenge era. 2026 was excluded here because the way calls are made changed that season, but how a framing number behaves when the rules change under it is the more interesting question. The postscript below is a first pass at it.
-
 ---
 
 ## Postscript: the ABS era
 
-v2 ends with 2025. In 2026 the ABS challenge system went live, and the question in the last paragraph above could be asked of real data: once any call can be challenged, do umpires' calls still vary with the catcher? The full analysis is in [ABS.md](ABS.md). It uses a different pipeline from everything above, so the same season can carry a different τ there.
+v2 ends with 2025. The ABS challenge system that went live in 2026 makes a new question answerable with real data: once any call can be challenged, do umpires' calls still vary with the catcher? The full analysis is in [ABS.md](ABS.md). It uses a different pipeline from everything above, so the same season can carry a different τ there.
 
 Two things had to change first. Statcast records the call after any challenge and marks none of the 4,431 that were overturned, so the umpire's original call was recovered from the challenge records in MLB's game feed. Every one of the 7,891 challenges on called pitches matched, with the final call agreeing each time. And 2026 redefined the strike zone from the batter's height, so every season was converted to that definition, with the baseline model refit inside each season.
 
@@ -273,7 +269,7 @@ Two things had to change first. Statcast records the call after any challenge an
   <img src="docs/images/en/abs_tau_by_season.png" width="560">
 </p>
 
-By the rule written down before any 2026 fit, the change is not detectable. 2026 has the lowest catcher variation of the six seasons (τ = 0.155). It sits below 2022, 2023 and 2024 with probability above 0.95, but below 2021 with only 0.87, and the rule needed all four. The more important point is that the decline began in 2023, before ABS, and 2025 cannot be told apart from 2026. With every team switching at once and no control group, this design cannot say whether ABS did anything. A smaller τ would not say whether umpires or catchers had changed either.
+By the rule written down before any 2026 fit, the change is not detectable. 2026 has the lowest catcher variation of the six seasons (τ = 0.155). It sits below 2022, 2023 and 2024 with probability above 0.95, but below 2021 with only 0.87, and the rule needed all four. The decline also began in 2023, before ABS, and 2025 cannot be told apart from 2026. With every team switching at once and no control group, this design cannot say whether ABS did anything. A smaller τ would not say whether umpires or catchers had changed either.
 
 Two questions are left for next: how much framing value survives the challenges, and whether challenging is itself a catcher skill.
 

@@ -16,7 +16,7 @@ The design was written down before any 2026 model was fit, and the section on it
 | Q2 | How much framing value survives the challenges? | Final call against original call |
 | Q3 | Is challenging a new catcher skill, and does it go with framing? | Challenge records |
 
-This round answers Q1 only. Q2 is partly mechanical, since overturned stolen strikes can only lower net value, and Q3 is descriptive. Both wait for Q1 to settle.
+This round answers Q1 only. Q2 is partly mechanical, since overturned stolen strikes can only lower net value, and Q3 is descriptive.
 
 ## 2. Data
 
@@ -65,9 +65,9 @@ Everything in this section was fixed before any 2026 model was fit. At that poin
 
 The ratio τ_2026 / τ_s is reported with its interval whatever the outcome.
 
-**Expectation, written in advance**: τ_2026 lower than the baseline period, but not detectably, because only a few calls per game can be challenged, so umpires have little reason to change much, and τ had already been falling since 2023.
+The expectation, written in advance, was that τ_2026 would be lower than in the baseline period but not detectably so, because only a few calls per game can be challenged, so umpires have little reason to change much, and τ had already been falling since 2023.
 
-**A disclosure.** A background job meant to wait for the 2021–2025 fits was triggered by a progress line and ran the report while 2025 was still fitting. So 2026 against 2021–2024 was seen after the design was fixed but before every season had finished. Nothing in the design or the rule changed as a result.
+(A note: a background job meant to wait for the 2021–2025 fits was triggered by a progress line and ran the report while 2025 was still fitting, so 2026 against 2021–2024 was seen after the design was fixed but before every season had finished. Nothing in the design or the rule changed as a result.)
 
 ## 4. Results
 
@@ -91,11 +91,9 @@ All eleven fits (six seasons on the ABS zone, five on the stance zone) returned 
 | 2024 | 0.983 | 0.75 [0.57, 0.98] |
 | 2025 (outside the rule) | 0.735 | 0.92 [0.68, 1.21] |
 
-**By the rule: no detectable change.** Three of the four baseline seasons clear 0.95; 2021 does not. The expectation was right on both counts.
+**By the rule: no detectable change.** Three of the four baseline seasons clear 0.95; 2021 does not. The expectation was right on both counts. τ fell from 0.226 in 2023 to 0.155 in 2026, but the decline began before ABS (0.206 in 2024, 0.169 in 2025), and 2025 cannot be told apart from 2026 (P = 0.735).
 
-The rule's verdict is not the most important thing in the table. From 2023, τ was already falling: 0.226, 0.206, 0.169, then 0.155. 2025 cannot be told apart from 2026 (P = 0.735). Even if 2021 had cleared the bar, this design could not separate an effect of ABS from a continuation of the decline that began in 2023. That is the limit of a before-and-after comparison with no control group, and it would stand however the rule had come out.
-
-**Persistence.** The correlation between a catcher's effect in consecutive seasons (catchers with ≥300 shadow-zone pitches in both):
+For persistence, the correlation between a catcher's effect in consecutive seasons (catchers with ≥300 shadow-zone pitches in both) is:
 
 | 2021→22 | 2022→23 | 2023→24 | 2024→25 | 2025→26 |
 |--:|--:|--:|--:|--:|
@@ -103,15 +101,15 @@ The rule's verdict is not the most important thing in the table. From 2023, τ w
 
 2025→26 is the lowest, as expected, but the drop began a year earlier. Each pair has 43 to 47 catchers, so a correlation of 0.5 carries an interval of roughly ±0.25.
 
-**Sensitivity to the zone definition.** On the stance zone, τ for 2021–2025 is 0.165, 0.204, 0.201, 0.183 and 0.171. That is 0.016 to 0.025 below the ABS-zone figures in 2021–2024 and about equal in 2025. The shape is the same, higher in 2022–2023 and falling after, but neighboring seasons swap places: 2022 and 2023, and 2021 and 2025. The definition moves the level by up to about a tenth. The main comparison uses the ABS zone throughout, since 2026 has no other, so it does not depend on that shift.
+On the stance zone, τ for 2021–2025 is 0.165, 0.204, 0.201, 0.183 and 0.171. That is 0.016 to 0.025 below the ABS-zone figures in 2021–2024 and about equal in 2025. The shape is the same, higher in 2022–2023 and falling after, but seasons with similar τ swap places: 2022 and 2023, and 2021 and 2025. The definition moves the level by up to about a tenth. The main comparison uses the ABS zone throughout, since 2026 has no other, so it does not depend on that shift.
 
-**Fewer doubtful calls.** Each season's shadow zone is drawn by its own baseline, so the number of pitches in it measures how many calls the model finds uncertain. 2026 has 10.8% fewer than 2025 and 15% fewer than the 2021–2024 average. That too continues a decline from 2023.
+There are also fewer doubtful calls. Each season's shadow zone is drawn by its own baseline, so its share of called pitches measures how many calls the model finds uncertain. That share eased from 15.3% in 2021 to 14.0% in 2025, then fell to 12.4% in 2026; by count, 2026 has 10.8% fewer than 2025.
 
 All tables are in [`results/abs/`](results/abs/).
 
 ## 5. What this can and cannot say
 
-- **It cannot attribute anything to ABS.** Every team switched at once, so there is no control group, and the decline predates the rule. Anything else that changed in 2026, such as umpire turnover or pitch mix, is mixed in.
+- **It cannot attribute anything to ABS.** Every team switched at once, so there is no control group, and the decline predates the rule; that holds however the rule comes out. Anything else that changed in 2026, such as umpire turnover or pitch mix, is mixed in.
 - **τ does not say which side changed.** It measures how much umpires' calls vary with the catcher. A smaller τ fits umpires responding less to framing, catchers framing less, or catchers becoming more alike, and these data cannot tell them apart.
 - **Knowing a call can be challenged is part of what is measured.** If umpires call the zone differently because they may be overruled, that shows up here, and it cannot be separated from anything else that changed that season.
 - **Precision.** A single season pins τ to roughly ±20%. A change of a tenth would not be visible.
@@ -119,7 +117,7 @@ All tables are in [`results/abs/`](results/abs/).
 
 ## 6. Not done yet
 
-Q2, how much value survives the challenges, and Q3, whether challenging is a catcher skill, wait for Q1 to settle. The exploratory check registered in advance, whether umpires respond differently once the batting team has no challenges left, has not been run.
+Q2, how much value survives the challenges, and Q3, whether challenging is a catcher skill, have not been done. The exploratory check registered in advance, whether umpires respond differently once the batting team has no challenges left, has not been run.
 
 ## 7. Reproduce
 

@@ -88,7 +88,7 @@ The reported band is also not the convenient one. The narrowest intervals are at
 
 2023 was locked for the whole of v2's development. Model form, shadow-zone threshold, inference engine, estimand and the list of reported quantities were all settled on 2021–2022. The hierarchical model was fit on 2023 once, at the end, so the new figures could be set against v1's published 2023 table.
 
-This is not a holdout in the strict sense. v1 had analyzed 2023 and published a leaderboard on it, and comparing against that table is the reason this round uses the season. So 2023 was never unseen: it was seen in v1, and v2's research question was shaped by what v1 found. What the lock does guarantee is that no v2 decision (the threshold, the engine, the estimand, the reported quantities) was tuned on 2023. It is a locked evaluation set for the v2 cycle, and calling it an untouched holdout would claim more than the design supports.
+This is not a holdout in the strict sense: v1 had analyzed 2023 and published a leaderboard on it, and comparing against that table is the reason this round uses the season. What the lock does guarantee is that no v2 decision (the threshold, the engine, the estimand, the reported quantities) was tuned on 2023; it is a locked evaluation set, not unseen data.
 
 The lock had a cost: with 2023 reserved, year-over-year stability rested on a single season pair. 2024 and 2025 paid most of it back.
 
