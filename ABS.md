@@ -109,7 +109,7 @@ All tables are in [`results/abs/`](results/abs/).
 
 ## 5. What this can and cannot say
 
-- **It cannot attribute anything to ABS.** Every team switched at once, so there is no control group, and the decline predates the rule; that holds however the rule comes out. Anything else that changed in 2026, such as umpire turnover or pitch mix, is mixed in.
+- **It cannot attribute anything to ABS.** Every team switched at once, so there is no control group, and the decline predates ABS, so this holds whatever the decision rule says. Anything else that changed in 2026, such as umpire turnover or pitch mix, is mixed in.
 - **τ does not say which side changed.** It measures how much umpires' calls vary with the catcher. A smaller τ fits umpires responding less to framing, catchers framing less, or catchers becoming more alike, and these data cannot tell them apart.
 - **Knowing a call can be challenged is part of what is measured.** If umpires call the zone differently because they may be overruled, that shows up here, and it cannot be separated from anything else that changed that season.
 - **Precision.** A single season pins τ to roughly ±20%. A change of a tenth would not be visible.

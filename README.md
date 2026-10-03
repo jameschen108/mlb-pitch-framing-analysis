@@ -4,7 +4,7 @@
 
 [![tests](https://github.com/jameschen108/mlb-pitch-framing-analysis/actions/workflows/tests.yml/badge.svg)](https://github.com/jameschen108/mlb-pitch-framing-analysis/actions/workflows/tests.yml)
 
-This project started from a podcast - a Taiwanese data scientist working in an MLB front office mentioned that catcher framing was the first project he was handed there. So I tried it.
+This project started with a podcast episode in which a Taiwanese data scientist working in an MLB front office mentioned that catcher framing was the first project he was handed there. So I tried it.
 
 Some catchers get more strike calls than others on identical pitches. The first version of this project measured that in two steps. It fit a strike-probability model on location and context but *not* catcher identity, and treated its prediction as the expected call for a pitch of that description. Then it let catcher, umpire, and pitcher effects compete for the residual. The result was a leaderboard, three variance components, and a correlation of 0.990 with Baseball Savant's published framing runs.
 
@@ -69,11 +69,11 @@ The model form is the same as v1's: a tensor spline over `plate_x` × standardiz
 | Train (in-sample) | 0.17346 |
 | Validation (out-of-sample, split by game) | 0.17149 |
 
-On this split there is no visible gap in overall log loss between the two (about 410 basis functions against 550,000 rows, with a penalty term). So v1's use of in-sample fit statistics was a methodological flaw that did not visibly inflate its fit. That is narrower than saying none of v1's estimates were affected. The only other check is the Savant correlation in section 3, where re-estimating the baseline's intercept recovers most of the gap.
+On this split there is no visible gap in overall log loss between the two (about 410 basis functions against 550,000 rows, with a penalty term). So v1's use of in-sample fit statistics was a methodological flaw that did not visibly inflate its fit. That does not mean none of v1's estimates were affected. The only other check is the Savant correlation in section 3, where re-estimating the baseline's intercept recovers most of the gap.
 
 The model is never refit. By 2025 it overpredicts the overall strike rate by 2.6 points; section 7 covers where that drift comes from and what it does to the unadjusted estimator.
 
-Calibration is weaker. Out of fold, the model over-predicts strikes below p̂ = 0.5 and under-predicts above it, by 0.7 to 1.6 points across the shadow zone. The pattern is consistent on 100,000 held-out pitches: all three bins below 0.5 over-predict and all three above under-predict. It does not matter much for the results, though. Recalibrating shifts per-catcher runs by amounts spanning 0.32 runs, against a spread of 31.5 runs across the same 84 catchers, so the baseline was left as is.
+Calibration is weaker. Out of fold, the model over-predicts strikes below p̂ = 0.5 and under-predicts above it, by 0.7 to 1.6 points across the shadow zone. The pattern is consistent on 100,000 held-out pitches: all three bins below 0.5 over-predict and all three above under-predict. It does not matter much for the results, though. Recalibrating moves every catcher's runs a little, but the largest and smallest shifts differ by only 0.32 runs, against a spread of 31.5 runs across the same 84 catchers, so the baseline was left as is.
 
 ### 3. What r = 0.990 does and does not show
 
@@ -126,7 +126,7 @@ The ordering flips between 2021 and 2022. In the other four seasons it leans tow
 
 All three components also shrink a little from 2023 to 2025: catcher 0.200, 0.183, 0.172; umpire 0.226, 0.223, 0.188. Every interval overlaps the others ([`results/variance_components.csv`](results/variance_components.csv)). 2025 is also the season the baseline fits worst (section 7). In a logistic model, variation the baseline leaves unexplained pulls every other effect toward zero, so part of the 2025 drop may come from the baseline rather than from umpires or catchers.
 
-The shadow-zone threshold moves it too. On the pooled train pool, P(τ_umpire > τ_catcher) is 0.50, 0.46 and 0.63 at the three thresholds committed to in advance ([`results/sensitivity_threshold.csv`](results/sensitivity_threshold.csv)). Both the choice of season and the choice of threshold shift the ordering, and neither shifts it far enough to settle the question. That is a stronger reason for "not supported" than the season flip alone.
+The shadow-zone threshold moves the ordering too. On the pooled train pool, P(τ_umpire > τ_catcher) is 0.50, 0.46 and 0.63 at the three thresholds committed to in advance ([`results/sensitivity_threshold.csv`](results/sensitivity_threshold.csv)). Both the choice of season and the choice of threshold shift the ordering, and neither shifts it far enough to settle the question. That is a stronger reason for "not supported" than the season flip alone.
 
 ### 5. How far apart are catchers?
 
@@ -180,7 +180,7 @@ One result was not planned. In the first figure of this section, the hollow mark
 
 ### 7. What the external checks could and could not distinguish
 
-The two estimators, run on identical pitches, compared on the two external checks available. 2024 and 2025 were added after every v2 choice was fixed and go through the same path as 2023: the train-only baseline, the same shadow zone and sampler settings, one fit each ([`models/holdout.py`](models/holdout.py)). That turns one year-over-year pair into four and two Savant seasons into five.
+Both estimators were run on identical pitches and compared on the two external checks available. 2024 and 2025 were added after every v2 choice was fixed and go through the same path as 2023: the train-only baseline, the same shadow zone and sampler settings, one fit each ([`models/holdout.py`](models/holdout.py)). That turns one year-over-year pair into four and two Savant seasons into five.
 
 | Check | Hierarchical | Unadjusted | 95% CI on hierarchical − unadjusted |
 |---|--:|--:|---|
@@ -204,7 +204,7 @@ Unadjusted framing runs are the residual times the number of pitches times 0.125
 
 What the row shows is narrow. The unadjusted estimator has nowhere to put a calibration error in its baseline, and a baseline three seasons old costs it 0.31 in agreement with Savant. It does not show that the hierarchical model measures framing better. Refitting the baseline every season, which is the usual practice, would most likely have prevented the drop.
 
-So the external checks still cannot do what the simulation does. Where the baseline is calibrated, they look only where the two estimators differ least, and mostly without enough precision to see even that. This is also why r = 0.990 was never validation: a check that cannot tell a good estimator from a bad one says nothing about which one you have.
+So the external checks still cannot do what the simulation does. As long as the baseline is calibrated, they see only the part where the two estimators differ least, and mostly without enough precision to see even that. This is also why r = 0.990 was never validation: a check that cannot tell a good estimator from a bad one says nothing about which one you have.
 
 ### 8. Reliability and persistence
 
