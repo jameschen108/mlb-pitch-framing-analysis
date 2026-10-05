@@ -358,7 +358,7 @@ models/
   shadow_checks.py     shadow-zone information, calibration bins, isotonic shift
   abs_era.py           the postscript: per-season fits on the ABS zone, 2021–2026
 sim/                   simulation study: generate, estimate, run
-notebooks/             01_eda … 06_multiseason (v1)
+notebooks/             00_results_tour (current results, from results/); 01_eda … 06_multiseason (v1)
 tests/                 invariants: cleaning, v1 effect mapping, v2 estimator, ABS call recovery, cross-season comparisons (27 tests, ~10s)
 scripts/
   make_figures.py      v1 figures, both languages

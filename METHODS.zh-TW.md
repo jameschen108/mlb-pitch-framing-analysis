@@ -358,7 +358,7 @@ models/
   shadow_checks.py     shadow zone 的資訊量、校準分箱、isotonic 位移
   abs_era.py           後記：ABS 好球帶下 2021–2026 逐季擬合
 sim/                   模擬研究：生成、估計、執行
-notebooks/             01_eda … 06_multiseason（v1）
+notebooks/             00_results_tour（目前的結果，讀自 results/）；01_eda … 06_multiseason（v1）
 tests/                 不變量：資料清理、v1 效應對應、v2 估計式、ABS 原判還原、跨季比較（27 個測試，約 10 秒）
 scripts/
   make_figures.py      v1 的圖，中英兩套

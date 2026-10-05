@@ -19,7 +19,21 @@ Some catchers get more strike calls than others on identical pitches. This proje
   <em>2023: each catcher's effect with its 95% credible interval. Blue intervals exclude zero; gray ones do not.</em>
 </p>
 
-This is the second version of the project. What the first version claimed, and which of those claims held up, is in [From v1 to v2](#from-v1-to-v2) further down.
+This is the second version of the project. What the first version claimed, and which of those claims held up, is in [From v1 to v2](#from-v1-to-v2) further down. [`notebooks/00_results_tour.ipynb`](notebooks/00_results_tour.ipynb) shows the headline results straight from the published tables, and the [reading guide](#reading-this-repository) says where everything else is.
+
+---
+
+## Where the methods come from, and what I did
+
+**From the literature.** The two-stage design comes from Judge, Pavlidis and Brooks (2015): a strike-probability model without catcher identity, then random effects for catcher, umpire and pitcher dividing the residual. Using a GAM for the called-strike surface follows Albert (2023), and Deshpande and Wyner (2017) give a hierarchical Bayesian framing model. The non-centered parameterization is standard practice.
+
+**Design and implementation in this project:**
+
+- **Data integration.** Statcast pitch data joined to MLB Stats API home-plate umpires on `game_pk`. Statcast records only the post-challenge call in 2026, so all 7,891 challenges on called pitches were checked against `reviewDetails` in the playByPlay feed, and the 4,429 overturned among them were restored to the umpire's original call.
+- **Estimand.** Δ, on the probability scale and averaged over each catcher's own pitches, is the explicit target, and the simulation scores both methods against the same true Δ.
+- **Out-of-sample design.** Five-fold cross-fitting split by game rather than by pitch. 2023 was locked during model selection, and 2024 and 2025 were fetched only after the design was fixed.
+- **Simulation.** Eight scenarios with 100 replications each, built on real pitch locations and workloads, plus a sweep of confounder strength that measures how large confounding has to be before the intervals fail.
+- **Diagnostics.** A breakdown of how the 2025 baseline drift affected the unadjusted residuals (their correlation with Savant fell to 0.647), and a check of how in-model calibration absorbed the season-wide shift.
 
 ---
 
@@ -276,7 +290,7 @@ I kept a dated working log through this round, wrong turns included. It is not p
 
 v2 ends with 2025. The ABS challenge system that went live in 2026 makes a new question answerable with real data: once any call can be challenged, do umpires' calls still vary with the catcher? The full analysis is in [ABS.md](ABS.md). It uses a different pipeline from everything above, so the same season can carry a different τ there.
 
-Two things had to change first. Statcast records the call after any challenge and marks none of the 4,431 that were overturned, so the umpire's original call was recovered from the challenge records in MLB's game feed. Every one of the 7,891 challenges on called pitches matched, with the final call agreeing each time. And 2026 redefined the strike zone from the batter's height, so every season was converted to that definition, with the baseline model refit inside each season.
+Two things had to change first. Statcast records the call after any challenge and does not mark the overturned ones, so the umpire's original call was recovered from the challenge records in MLB's game feed. Every one of the 7,891 challenges on called pitches matched, with the final call agreeing each time, and the 4,429 overturned among them were flipped back. And 2026 redefined the strike zone from the batter's height, so every season was converted to that definition, with the baseline model refit inside each season.
 
 <p align="center">
   <img src="docs/images/en/abs_tau_by_season.png" width="560">
@@ -287,6 +301,16 @@ The result does not meet the prespecified threshold for being lower than **every
 Two questions are left for next: how much framing value survives the challenges, and whether challenging is itself a catcher skill.
 
 ---
+
+## Reading this repository
+
+1. This README: the question, the findings and the evidence for them.
+2. [`notebooks/00_results_tour.ipynb`](notebooks/00_results_tour.ipynb): the headline results read straight from the CSVs in `results/`. It downloads nothing and fits nothing, and runs in seconds.
+3. [METHODS.md](METHODS.md): the estimand, identification, the simulation design, and where the numbers are weaker than they look.
+4. [`results/README.md`](results/README.md): which CSV backs which number.
+5. [ABS.md](ABS.md): the 2026 postscript.
+
+Notebooks 01–06 are v1's analysis. They still run and are kept so v1 can be compared with this version, but some of their conclusions are stronger than the evidence supports. Where they disagree with this README or METHODS, the README and METHODS are current.
 
 ## Methods overview
 
