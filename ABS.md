@@ -2,7 +2,7 @@
 
 **English** | [繁體中文](ABS.zh-TW.md)
 
-In 2026 the automated ball-strike (ABS) challenge system went live in the regular season. A batter, pitcher or catcher can ask for a called pitch to be checked against the tracked zone, and the call is overturned if the tracking disagrees. This document asks whether umpires' calls still respond to who is catching once that is possible. It is a separate analysis from v2, done after v2 was finished. The v2 pipeline, caches and published numbers are unchanged, and because the design below differs from v2's, the same season can carry a different τ here than in the [README](README.md).
+In 2026 the automated ball-strike (ABS) challenge system went live in the regular season. A batter, pitcher or catcher can ask for a called pitch to be checked against the tracked zone, and the call is overturned if the tracking disagrees. This document asks whether umpires' calls still respond to who is catching once that is possible. It is a separate analysis from v2, done after v2 was finished. This analysis does not modify the v2 pipeline or its caches, and because the design below differs from v2's, the same season can carry a different τ here than in the [README](README.md).
 
 The design was written down before any 2026 model was fit. Section 4 reports the result: 2026 has the lowest posterior mean catcher variation of the six seasons, but does not meet the prespecified threshold for being lower than every baseline season. The decline began before ABS.
 
