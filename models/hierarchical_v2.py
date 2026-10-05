@@ -127,10 +127,11 @@ def delta_draws(samples: dict, data: dict, logit_base: np.ndarray,
                 n_draws: int = 1000) -> tuple:
     """每位捕手的 Δ 後驗抽樣，外加每位捕手的球數。
 
-        Δ_c = mean_i [ P(strike | c 接) − P(strike | 聯盟平均捕手接) ]
+        Δ_c = mean_i [ P(strike | u_catcher = u_c) − P(strike | u_catcher = 0) ]
 
     對該捕手的每一顆球，比較含 u_catcher 與不含 u_catcher 的預測機率，再平均。
     逐抽樣計算，所以區間可以一路傳遞到 framing runs。
+    此參考值不是對聯盟捕手機率取平均；區間條件於已擬合的第一階段基準。
 
     （models/intervals.py、holdout.py、validate.py 各有一份等價的內嵌實作，早於
     這個函式；它們的快取已經產生，沒有跟著改，值得之後收攏成一處。）

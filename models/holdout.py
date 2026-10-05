@@ -1,4 +1,6 @@
-"""2023 holdout：階層模型只擬合一次，在所有選模決定都定案之後。
+"""2023 鎖定評估集：主要階層擬合在選模定案之後執行並快取。
+
+models/identify.py 的後驗相關診斷另行擬合 2023；校準檢查也會使用這一季。
 
 紀律
 ----
@@ -202,7 +204,7 @@ def baseline_drift(force: bool = False) -> pl.DataFrame:
       （y ~ logit_base）之後，未調整估計式對 Savant 的相關。
 
     residual runs 沒有截距。基準模型整體偏一邊時，偏差乘上球數，就變成一項跟上場量
-    成正比的東西；重新校準那一欄如果回升，原因就是這個，而不是球位組成。
+    有關的項；重新校準後若回升，支持校準偏差是重要來源，但修正量也取決於球位組成。
     """
     if DRIFT_PATH.exists() and not force:
         return pl.read_parquet(DRIFT_PATH)

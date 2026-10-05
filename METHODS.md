@@ -10,22 +10,22 @@ Technical companion to [`README.md`](README.md). It covers what is being estimat
 
 These are two separate questions. v1 did not keep them apart, which made it hard to check.
 
-**The estimand.** For catcher *c*, the average change in called-strike probability over the pitches he actually received, from replacing a league-average receiver with him:
+**The estimand.** For catcher *c*, the average model-implied change in called-strike probability over his own pitches when his catcher effect replaces the reference effect `u_catcher = 0`, keeping the other covariates and umpire/pitcher effects fixed:
 
 ```
-Δ_c = mean over c's pitches of [ P(strike | c receives) − P(strike | average receiver) ]
+Δ_c = mean over c's pitches of [ P(strike | u_catcher = u_c) − P(strike | u_catcher = 0) ]
 ```
 
 Δ is an average over pitches. It is reported per 100 shadow-zone pitches, or summed and multiplied by 0.125 runs for the leaderboard.
 
-Three properties of Δ are worth noting. It is measured against the league average, because a random-effects model identifies catcher effects only up to a constant; the global level goes into the intercept. It is averaged over that catcher's own pitches, so two catchers who faced different pitch mixes are each scored on what they actually saw. And it is on the probability scale, not the logit scale.
+The zero-mean random-effect prior anchors the reference on the logit scale; the realized catcher effects are not constrained to sum to zero. This reference is not the probability averaged over actual league catchers: generally E[σ(m + u)] ≠ σ(m + E[u]). Δ averages over each catcher’s own pitch mix and is on the probability scale. It is a conditional model contrast, without a causal identification guarantee.
 
-**The estimators.** There are two, both targeting Δ:
+**Procedures compared against this estimand.** Two:
 
-- **Residual runs** (the v1 approach): `Δ̂_c = mean(actual − baseline predicted)` over that catcher's pitches. No adjustment for umpire or pitcher. Intervals come from a binomial standard error.
+- **Unadjusted residuals** (the v1 approach): `mean(actual − baseline predicted)` over the catcher’s pitches, with binomial standard-error intervals. This is a proxy for Δ: interpreting it as that same contrast requires the baseline to represent the zero-effect receiver on those pitches. Umpire/pitcher contributions and the difference between a marginal baseline and the conditional reference can violate this, even when assignments are independent.
 - **Hierarchical model**: crossed random intercepts for catcher, umpire and pitcher on the residual, with the baseline logit entering as a calibration covariate whose coefficient is estimated rather than fixed at 1. Δ is computed per posterior draw and summarized.
 
-Δ is used instead of the logit-scale coefficient `u_catcher` on purpose. Residual runs has no `u_catcher`, so comparing the two estimators on `u` would compare different quantities. Δ is what both estimate and what the leaderboard reports, so the simulation in section 6 tests the same number that gets published.
+Δ is used instead of the logit-scale coefficient `u_catcher` because the residual method has no such coefficient. Evaluating both procedures against a probability-scale truth matches the units of the published leaderboard; it does not establish that unadjusted residuals are unbiased for the same conditional contrast.
 
 ---
 
@@ -50,7 +50,7 @@ The train/validation split used to evaluate the baseline is on `game_pk`, not on
 
 A bootstrap over games on the validation split's shadow-zone residual sums showed that this clustering widens standard errors by a factor of **1.21 to 1.29**. That is less than the 1.5 to 1.8 I had guessed, but not negligible.
 
-One comparison uses a different unit. When two estimators are compared against the same external target (README §7), the quantities being correlated are already one number per catcher, and the game-level clustering is absorbed in the step that produced them. There the resampling unit is the catcher, and the resample is paired across the two estimators (`paired_bootstrap_diff` in [`models/validate.py`](models/validate.py)). Resampling the two estimators independently would count the variation in which catchers are sampled twice and widen the interval, which here would have made it easier to reach the conclusion I already expected.
+For external correlations (README §7), each catcher supplies a vector of fitted summaries. The paired catcher bootstrap resamples that vector as a unit, retaining covariance between the estimators. Aggregation does not remove dependence from shared games, umpires, pitchers or estimated model parameters. These intervals treat the fitted summaries as fixed and approximate catcher-level sampling variation; they do not propagate the uncertainty of the two-stage estimation pipeline. Independent resampling of the two estimators would discard their covariance and distort the difference interval; the direction depends on that covariance. Fully propagating uncertainty would require a resampling or joint-model design preserving the relevant dependencies and refitting the estimation stages.
 
 ### 2.3 The shadow zone
 
@@ -86,7 +86,7 @@ The reported band is also not the convenient one. The narrowest intervals are at
 
 ### 2.4 Locking 2023
 
-2023 was locked for the whole of v2's development. Model form, shadow-zone threshold, inference engine, estimand and the list of reported quantities were all settled on 2021–2022. The hierarchical model was fit on 2023 once, at the end, so the new figures could be set against v1's published 2023 table.
+2023 was locked during v2 model selection. Model form, shadow-zone threshold, engine, estimand and the planned outputs were settled on 2021–2022. One primary 2023 fit was then cached for comparison with v1. The catcher–pitcher posterior-correlation diagnostic in `models/identify.py` separately refits 2023 because the primary cache does not retain the necessary individual random-effect draws.
 
 This is not a holdout in the strict sense: v1 had analyzed 2023 and published a leaderboard on it, and comparing against that table is the reason this round uses the season. What the lock does guarantee is that no v2 decision (the threshold, the engine, the estimand, the reported quantities) was tuned on 2023; it is a locked evaluation set, not unseen data.
 
@@ -94,7 +94,7 @@ The lock had a cost: with 2023 reserved, year-over-year stability rested on a si
 
 **2024 and 2025.** Both seasons were fetched after every decision above had been made, so none of those decisions could have been tuned on them. Neither was seen by v1 either, which makes them closer to a true holdout than 2023 is. Each goes through the same path as 2023: the train-only baseline, the same threshold and sampler settings, one fit. With 2021–2023 they give ten pairs of seasons for year-over-year stability instead of one (README §8). The training data did not grow.
 
-Adding them meant touching 2023 again. The year-over-year pairs that include 2023 read its cached posterior, and the baseline's calibration was scored on it (§4.1) and diagnosed on it. None of this refit the 2023 model or informed a choice.
+Later year-over-year comparisons reuse the primary 2023 posterior cache. Calibration scoring, recalibration and the corrected correlation comparison also examine 2023 (§4.1; `models/recalibration.py`). The separate identification fit above and these post-hoc diagnostics should not be described as a single untouched use of that season. The model-selection lock concerns the stated design choices, not the literal number of computations.
 
 ---
 
@@ -167,19 +167,19 @@ The model has two stages, but it is not an offset model. The baseline logit ente
 
 Fixing `b` at 1 barely changes the results. Refitting the same pitches with the offset model leaves per-catcher framing runs correlated with the free fit at r = 0.9997 (Spearman 0.9991). The largest single-catcher shift is **0.40 runs against a leaderboard spread of 28.9**, the mean shift is 0.06, the top ten are the same ten, and the largest rank change among 148 catchers is 12 places. The catcher and umpire components move by less than 0.005 and the pitcher component by 0.006, and P(τ_umpire > τ_catcher) stays at 0.46. The offset assumption is wrong, but the estimates do not depend on it. Both fits are in [`models/sensitivity.py`](models/sensitivity.py), summarized in [`results/sensitivity_slope.csv`](results/sensitivity_slope.csv).
 
-This check was run on the 2021–2022 train pool rather than on 2023, which had already been fit once (§2.4). Refitting 2023 for a robustness check would use it a second time.
+This sensitivity check uses the 2021–2022 train pool so it does not select a model on the 2023 evaluation results. Extending sampling for computational diagnostics is a different issue from changing model choices after seeing evaluation results; a fixed fit count is not itself protection against selection bias.
 
 Pitchers with fewer than 100 shadow-zone pitches in the data being fitted share a single pooled effect: 749 of 1,123 pitchers, carrying 25% of the pitches, on the train pool; 669 of 835, carrying 48%, on 2023; 659 of 825 (47%) on 2024; and 692 of 850 (49%) on 2025. Their individual effects would be heavily shrunk anyway, but for those pitches the pitcher term is a single shared intercept that says nothing about who actually threw the pitch.
 
 The random effects are written in non-centered form. When τ is small, the centered form tends to produce a funnel-shaped posterior that NUTS explores badly, with divergent transitions. A centered version was never tried here; the choice follows standard advice. All fits returned zero or near-zero divergences (2 across 800,000 draws in the simulation study).
 
-Switching engines did not change the estimates. On identical data (2022, shadow zone), variational Bayes and NUTS agree on per-catcher effects at r = 0.9999 (Spearman 0.9998), and VB's posterior standard deviation is 0.95× NUTS's. Variational inference is known to understate posterior variance, and here the understatement is about 5%. What NUTS adds is the joint posterior. The statsmodels VB fit is mean-field, an independent normal approximation for each parameter, so it drops the posterior correlations that Δ, the pairwise probabilities and P(τ_umpire > τ_catcher) depend on, including the catcher–pitcher correlation in §3.2.
+On identical 2022 shadow-zone data, VB and NUTS per-catcher effects have Pearson r = 0.9999 and Spearman 0.9998. This establishes similar ordering, not equal magnitudes or convergence of every v1 fit; absolute agreement was not measured in this comparison. The reported ratio of median posterior standard deviations is about 0.95, meaning roughly 5% smaller standard deviation, or 9.75% smaller variance when that ratio applies. The statsmodels VB fit uses a mean-field normal approximation, so it also loses within-fit posterior correlations needed for Δ and pairwise comparisons. NUTS retains those correlations.
 
 ---
 
 ## 5. Uncertainty
 
-**Δ posterior.** For each posterior draw, η is reconstructed for every pitch, Δ is computed as `σ(η) − σ(η − u_catcher)`, and the result is averaged within catcher. This gives a posterior distribution over Δ for each catcher; the interval is its 2.5/97.5 percentiles.
+**Δ posterior.** For each draw, reconstruct η, compute `σ(η) − σ(η − u_catcher)`, and average within catcher; intervals use the 2.5/97.5 percentiles. These are conditional on the fitted GAM predictions, selected shadow-zone pitches, observed covariates and model assumptions. They do not propagate first-stage GAM estimation uncertainty, uncertainty in zone membership or model misspecification. The simulations likewise treat the baseline as known; their coverage does not validate uncertainty for the complete two-stage pipeline.
 
 **Runs.** `runs = Δ × shadow-zone pitches × 0.125`. The pitch count and run value are fixed for each catcher, so the interval on runs is the interval on Δ rescaled. It is computed per draw anyway, which would matter only for totals across catchers, whose draws are correlated.
 
@@ -187,7 +187,7 @@ Switching engines did not change the estimates. On identical data (2022, shadow 
 
 **Separability.** On 2023, 27 of 102 catchers (26%) have intervals excluding zero, and in 27% of pairs one catcher is ahead of the other with posterior probability above 0.95. Restricting to catchers with ≥1,000 shadow-zone pitches raises these to 53% and 55%. Neighbors in the ranking rarely separate: of the 101 adjacent pairs, 99 have P(higher > lower) below 0.6, with a median of 0.52. The top two separate on 2023 (posterior probability 0.98) but not on 2021–2022 (0.77). On 2024 and 2025, 20% and 16% of catchers have intervals excluding zero and 23% and 18% of pairs are ordered at 0.95; the top two do not separate in either (0.65 and 0.70), which leaves 2023 the only fit where they do ([`results/separability.csv`](results/separability.csv)).
 
-**Coverage at the extremes.** In simulation, coverage for the largest third of effects runs 4 to 7 points below overall coverage in every scenario, including the unconfounded baseline, where it is 89.0% against 94.7%. The other two thirds err the other way: 97.5% in the same scenario, and 95.5% to 97.9% across all eight. Credible intervals are calibrated on average over the distribution of effects, not for each size of effect, so the overall figure averages a tail below nominal with a middle above it. Partial pooling gets its stability by pulling the tails in, so some shortfall at the extremes should be expected wherever it is used; the size measured here belongs to these simulated settings (30 catchers, about 500 pitches each). The caterpillar plot carries this caveat in its caption.
+**Coverage by true effect size.** Simulation stratifies by absolute true Δ: the largest third covers about 4–7 percentage points less often than the full set, including 89.0% versus 94.7% in the baseline. The remaining two thirds cover 97.5% there and 95.5–97.9% across scenarios. This is not stratification by estimated rank, so it does not measure coverage of the observed leaderboard’s top and bottom. Shrinkage contributes to this pattern in these settings (30 catchers, about 500 pitches each); neither the pattern nor its size is universal. Exact prior-averaged Bayesian calibration requires parameters and data drawn from the same prior and sampling model ([Stan’s explanation](https://mc-stan.org/docs/stan-users-guide/simulation-based-calibration.html)); here τ is fixed in the generator and catcher effects are centered. The figure carries the narrower simulation caveat.
 
 ---
 
@@ -216,11 +216,11 @@ Eight scenarios in two groups. The first four change the data structure; the las
 | heavy_tail | Catcher effects from t(3), violating the normal prior |
 | omitted_covariate | A variable affecting calls, correlated with catcher, absent from the model; half the size of the catcher effect (swept in §6.4) |
 
-`location_shared` looks like a misspecification but is not one. When locations are drawn independently of catcher, every catcher faces the same distribution, so the interaction term averages to the constant `γ_c · E[centred]`, where `centred = 2(p̂ − 0.5)` puts the baseline probability on a −1 to 1 scale. A constant-intercept model recovers that exactly. The catcher-level spread in mean location is 0.017 under this scenario, against 0.078 under `location_mix`. It stays in the table as a control.
+`location_shared` is misspecified as a conditional model: each catcher has a different location slope, whereas the fitted model has a common slope and catcher intercepts. Shared location distributions do not remove this interaction. In particular, averaging `γ_c · centred` on the logit scale does not give the average probability, because σ is nonlinear. A constant-intercept model can approximate the average effect well in this tested setting, but cannot exactly recover the location-specific probabilities. The catcher-level spread in mean location is 0.017 here, against 0.078 under `location_mix`; the former serves as a comparison with less pitch-mix heterogeneity.
 
-Two further scenario designs failed before `omitted_covariate` worked, both for the same reason: the fitted model absorbed what was meant to break it. A covariate defined at the pitcher level is taken up whole by the pitcher random effect. Per-pitch noise is uncorrelated with the catcher and only adds unexplained variance. Only a covariate with a catcher-level component, with the truth defined to exclude that component, affects coverage.
+Two earlier omitted-variable constructions did not substantially degrade coverage at the strengths tried. In the additive pitcher-level construction, the pitcher random effect could represent the omitted term. Independent per-pitch noise also left overall coverage near nominal in the attempted setting. These outcomes do not show that only catcher-level omitted variables can affect coverage: their distribution, size and relation to covariates also matter.
 
-That last construction is close to tautological: removing from the truth something the data cannot separate guarantees that coverage fails once the removed part is large enough. At the strength used in the table it is not yet large enough, and the hierarchical intervals cover 92.9%. It is included because the size of the failure is informative, and because it shows that good coverage elsewhere does not justify a causal reading.
+The final construction deliberately gives the omitted variable a catcher-level component while defining true Δ to exclude its contribution. The data cannot reliably separate those components, and the sweep measures how estimation fails as the omitted component grows. At the table’s strength, hierarchical coverage is 92.9%; at larger strengths it falls. This illustrates a specific identification failure, not a general coverage theorem or support for a causal interpretation.
 
 ### 6.3 Metrics
 
@@ -234,7 +234,7 @@ Rather than choose one confounder size and report whether it broke the intervals
 
 ### 6.5 What the simulation does not establish
 
-In five of the eight scenarios the data are generated from the model's own functional form, so good coverage there is close to guaranteed and should not be read as validation. The three scenarios built to break the model did not break it at the strengths used. That limits the claim: the intervals survive the misspecifications tested here, at those strengths. The sweep in §6.4 shows one of them breaking the intervals once it is made larger.
+Four scenarios use the fitted conditional functional form; four introduce location interactions, heavy tails or an omitted covariate. Good coverage in the former tests estimation under a favorable specification, but is not guaranteed: the generator fixes τ and centers catcher effects rather than drawing all parameters from the fitting prior. At the tested strengths, none of the four misspecified scenarios produces a large overall coverage failure, while true-effect-tail coverage remains lower. The claim is limited to these settings and a known baseline; the stronger omitted-covariate sweep demonstrates failure. This does not establish full-pipeline real-data coverage or causal identification.
 
 ---
 
@@ -244,7 +244,7 @@ The limitations section of [`README.md`](README.md) lists the scope limits, such
 
 **Catcher and pitcher are partly inseparable.** A pitcher's pitches are caught by his most frequent catcher a median 60.5% of the time, and 84.8% at the 90th percentile. The posterior correlation between a catcher's effect and his most-caught pitcher's effect has a median of ρ = −0.221, with 63.6% of pairs below −0.2. In the one battery scenario simulated, the intervals held at 94%, so at that strength the cost was precision rather than coverage; that is not a general guarantee. The catcher term also still picks up anything about a pitcher that changes with the catcher he throws to.
 
-**Coverage at the extremes is 87–91%, not 95%**, in every simulated scenario, including the unconfounded baseline. Shrinkage is the cause, so some shortfall should be expected on other data too, but the 87–91% figure belongs to these simulated settings. It affects the top and bottom of the leaderboard. The other two thirds cover 95.5–97.9%, so the overall 95% is an average.
+**Coverage for the largest third of absolute true effects is 87–91%** in these simulations, including the unconfounded baseline. The remaining two thirds cover 95.5–97.9%, giving overall coverage near 95%. The grouping uses true effects, not selected estimated ranks; the percentages cannot be assigned to the observed leaderboard ends or to another data-generating process.
 
 **Unmeasured catcher-correlated confounding has a measurable cost:** 94% coverage with none, 88% when it is as large as the catcher effect, and 66% at twice that. This is a different problem from the pairing concentration in §3.2: a variable that follows the catcher and is never observed. Nothing in the data says where on that curve the real analysis sits, and better inference would not change that, because it is a property of the design rather than of the estimation.
 
@@ -256,13 +256,13 @@ The limitations section of [`README.md`](README.md) lists the scope limits, such
 
 Recorded because each cost time, and each would have produced a wrong number if it had gone unnoticed.
 
-**One validation split was too small to detect a bias of this size.** A 971-game split showed a shadow-zone residual bias significant at p ≈ 0.03 at all three thresholds. Five-fold cross-fitting over all 4,856 games put it at z = +0.30, with an interval covering zero. The agreement across thresholds looked like three pieces of evidence but was only one: the bands share most of their pitches, so the three tests are nearly the same test, and a single p ≈ 0.03 on a single split is weak.
+**One split does not establish persistent calibration bias.** A 971-game validation split gave p ≈ 0.03 at three shadow thresholds. Five-fold cross-fitting over 4,856 games gave z = +0.30 with an interval including zero. The samples and fitted baselines differ, so this does not prove the bias vanished or was zero. The thresholds share most pitches and supply strongly dependent checks, not three independent replications.
 
 **Timing JAX without blocking.** `mcmc.run()` returns while the computation is still running, so a timer stopped right after it measures dispatch rather than the fit. Call `jax.block_until_ready(mcmc.get_samples())` before stopping the clock.
 
 **`numpyro.set_host_device_count` is ignored once XLA has initialized.** Calling it inside each fit means a later 4-chain run falls back to sequential execution, with only one warning on stderr and twice the wall time. The device count has to be set through `XLA_FLAGS` before JAX is imported.
 
-**Effects relative to zero vs relative to the league mean.** The two differ by a constant, which shows up in a simulation as a small bias that is the same in every scenario. When five structurally different scenarios return nearly the same bias (+0.0029 to +0.0030), the cause is arithmetic, not statistics.
+**Centering effects changes the reference.** An early simulation used an uncentered realization of catcher effects, while the zero-mean prior anchored the fitted reference differently. Centering the generated catcher effects removed a recurring bias of about +0.0029 to +0.0030. A constant shift on the logit scale is not a constant shift on the probability scale, and centering does not turn the zero-effect receiver into the probability averaged across league catchers (§1).
 
 **Comparing log loss across seasons hid a 2.6-point calibration shift.** Scored on 2025, the fixed baseline's log loss was no worse than on its own validation split, because 2025's pitches happened to be easier to predict. Within the season log loss did respond: an intercept correction lowered it by 0.006. The drift was obvious as soon as predicted and actual strike rates were set side by side. Read across seasons, the log loss gave no warning, and the unadjusted estimator's 0.647 against Savant in 2025 could have been taken for a failure of the estimator rather than of a stale baseline.
 
@@ -294,7 +294,7 @@ uv run python -m sim.run sweep 50
 # four fits on the train pool (~30–40 min)
 uv run python -m models.sensitivity
 
-# 2023 (fit once)
+# primary 2023 fit (subsequent comparisons reuse the cache)
 uv run python -m models.holdout
 
 # 2024–2025: pitches, umpires and Savant's leaderboard, then one fit per season
@@ -315,6 +315,9 @@ uv run python -m models.holdout --drift
 # section 3's decomposition, and METHODS §2.3 and §4.1 (shadow-zone information, calibration, isotonic shift)
 uv run python -m models.holdout --decompose
 uv run python -m models.shadow_checks
+
+# corrected 2023 correlation difference and per-pitch calibration effects (existing fits)
+uv run python -m models.recalibration
 
 uv run python -m scripts.make_figures_v2
 

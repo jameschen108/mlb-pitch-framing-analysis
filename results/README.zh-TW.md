@@ -8,6 +8,11 @@
 
 不在這些檔案裡的數字，由產生它的模組印出：2021 與 2022 的單季擬合與引擎對照在 [`models/compare_engines.py`](../models/compare_engines.py)，log loss 在 [`models/baseline_v2.py`](../models/baseline_v2.py)，METHODS §3 在 [`models/identify.py`](../models/identify.py)。v1 的數字來自 [`v1.0`](../../../tree/v1.0) 的模組。
 
+
+捕手 Δ、runs 與 τ 的後驗區間條件於已擬合的基準模型，不包含第一階段估計或區域選樣的不確定性。相關差異的捕手 bootstrap 則把擬合摘要當固定值，未重擬整套流程。機率欄位如 `p_positive`、`p_below_2023` 與 `p_tau2026_lower` 是後驗事件機率，不是 p-value。
+
+跨季比較使用獨立邊際後驗的全部交叉組合；同一次擬合內的比較保留聯合抽樣。`abs/q1_comparison.csv` 的 `p_tau2026_lower_than_all_baseline` 是同時低於四個基準季的聯合機率，各列重複同一數值。`verdict` 仍依事前的四個邊際門檻，不應解讀為沒有變化。
+
 | 檔案 | 對應的數字 |
 |---|---|
 | [`leaderboard_2023_holdout.csv`](leaderboard_2023_holdout.csv) | README 的 2023 榜單：全部 102 位捕手的 Δ、framing runs、95% 區間與 Savant 數字 |
@@ -18,6 +23,8 @@
 | [`variance_components.csv`](variance_components.csv) | 第 4 節的 τ 表與 P(τ 主審 > τ 捕手)，含 2023、2024、2025 與 2021–2022 合併擬合，以及 2024、2025 各成分低於 2023 的機率 |
 | [`separability.csv`](separability.csv) | 第 5 節的三個最低球數門檻（0、500、1,000），四組擬合各一份，含相鄰名次的機率 |
 | [`savant_decomposition.csv`](savant_decomposition.csv) | 第 3 節的拆解，含 2023、2024、2025：每種球的範圍與基準修正，附上與上場量的相關 |
+| [`corrected_external_checks.csv`](corrected_external_checks.csv) | 第 3 節：2023 階層模型對截距修正後殘差的實際相關差與配對 bootstrap 區間 |
+| [`per_pitch_recalibration.csv`](per_pitch_recalibration.csv) | 第 7 節：各季每球修正量範圍（機率單位）與修正前後的相鄰球季相關；兩季都須 ≥300 顆 shadow 球 |
 | [`external_checks.csv`](external_checks.csv) | 最早的三項檢查（2021 → 2022、Savant 2021 與 2022），也都包含在下面兩個檔案裡 |
 | [`year_over_year.csv`](year_over_year.csv) | 第 7 節：2021–2025 每一對球季，兩個估計式並排加配對差 |
 | [`vs_savant_by_season.csv`](vs_savant_by_season.csv) | 第 7 節：2021–2025 每一季對照 Savant |
@@ -33,3 +40,5 @@
 | [`sensitivity_slope_diff.csv`](sensitivity_slope_diff.csv) | 把 `b` 固定為 1 之後榜單動了多少 |
 | [`sensitivity_threshold.csv`](sensitivity_threshold.csv) | METHODS §2.3 承諾要報的三個 shadow zone 門檻 |
 | [`v1_fit_summary.csv`](v1_fit_summary.csv) | v1 的固定效應，含估計出來的 `logit_base` 係數 |
+
+新增的校準診斷可用 `uv run python -m models.recalibration` 從既有模型與資料快取重建，再執行 `uv run python -m scripts.make_results` 匯出；不重跑 NUTS 或下載資料。

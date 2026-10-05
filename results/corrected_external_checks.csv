@@ -1,0 +1,2 @@
+season,pitches,baseline,r_hierarchical,r_residual_recalibrated,diff,lo,hi,n_boot,n_catchers
+2023,shadow,intercept,0.941954,0.960122,-0.018168,-0.035982,0.001501,8000,63

@@ -1,0 +1,4 @@
+season,intercept_shift_min,intercept_shift_max,next_season,n_catchers_pair,r_yoy_raw,r_yoy_intercept,r_yoy_intercept_slope
+2023,0.027430,0.032459,2024,48,0.619684,0.619347,0.619482
+2024,0.024700,0.028826,2025,46,0.616573,0.616092,0.616158
+2025,0.100771,0.119677,,,,,

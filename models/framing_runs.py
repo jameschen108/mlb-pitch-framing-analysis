@@ -5,7 +5,7 @@
     extra_strikes(捕手) = Σ (實際判定 − 基準機率)
     framing_runs(捕手)  = extra_strikes × RUN_VALUE
 
-正值 = 比平均捕手多偷好球（好 framer）。RUN_VALUE 為 ball→strike 的期望失分價值
+正值表示判好球多於基準預測，不保證分離出捕手技能。RUN_VALUE 為 ball→strike 的近似價值
 （0.125 runs，與 Savant 相同）。
 
 這是**未調整版**：只控制了進壘位置與球數，沒有控制主審/投手（那是階層模型的
