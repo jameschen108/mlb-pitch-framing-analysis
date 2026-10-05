@@ -15,7 +15,7 @@ Numbers not in these files are printed by the module that produces them: the 202
 | [`leaderboard_2024_holdout.csv`](leaderboard_2024_holdout.csv) | the same for 2024, 100 catchers, with Savant's 2024 figure |
 | [`leaderboard_2025_holdout.csv`](leaderboard_2025_holdout.csv) | the same for 2025, 110 catchers, with Savant's 2025 figure |
 | [`leaderboard_v1_pooled_2021_2023.csv`](leaderboard_v1_pooled_2021_2023.csv) | v1's three-season VB leaderboard (section 8) |
-| [`variance_components.csv`](variance_components.csv) | section 4's τ table and P(τ_umpire > τ_catcher), for 2023, 2024, 2025 and the pooled 2021–2022 fit |
+| [`variance_components.csv`](variance_components.csv) | section 4's τ table and P(τ_umpire > τ_catcher), for 2023, 2024, 2025 and the pooled 2021–2022 fit, with the probability that each 2024 and 2025 component sits below 2023's |
 | [`separability.csv`](separability.csv) | section 5's three minimum-pitch cutoffs (0, 500, 1,000) for each of the four fits, with the adjacent-rank probabilities |
 | [`savant_decomposition.csv`](savant_decomposition.csv) | section 3's decomposition for 2023, 2024 and 2025: each pitch set and baseline correction, with the playing-time correlations |
 | [`external_checks.csv`](external_checks.csv) | the original three checks (2021 → 2022, Savant 2021 and 2022), also contained in the two files below |

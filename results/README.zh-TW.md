@@ -15,7 +15,7 @@
 | [`leaderboard_2024_holdout.csv`](leaderboard_2024_holdout.csv) | 2024 的同一組欄位，100 位捕手，附 Savant 2024 的數字 |
 | [`leaderboard_2025_holdout.csv`](leaderboard_2025_holdout.csv) | 2025 的同一組欄位，110 位捕手，附 Savant 2025 的數字 |
 | [`leaderboard_v1_pooled_2021_2023.csv`](leaderboard_v1_pooled_2021_2023.csv) | v1 的三季合併 VB 榜單（第 8 節） |
-| [`variance_components.csv`](variance_components.csv) | 第 4 節的 τ 表與 P(τ 主審 > τ 捕手)，含 2023、2024、2025 與 2021–2022 合併擬合 |
+| [`variance_components.csv`](variance_components.csv) | 第 4 節的 τ 表與 P(τ 主審 > τ 捕手)，含 2023、2024、2025 與 2021–2022 合併擬合，以及 2024、2025 各成分低於 2023 的機率 |
 | [`separability.csv`](separability.csv) | 第 5 節的三個最低球數門檻（0、500、1,000），四組擬合各一份，含相鄰名次的機率 |
 | [`savant_decomposition.csv`](savant_decomposition.csv) | 第 3 節的拆解，含 2023、2024、2025：每種球的範圍與基準修正，附上與上場量的相關 |
 | [`external_checks.csv`](external_checks.csv) | 最早的三項檢查（2021 → 2022、Savant 2021 與 2022），也都包含在下面兩個檔案裡 |

@@ -99,12 +99,18 @@ def _variance_components(fits: dict[str, dict]) -> pl.DataFrame:
     """τ 的後驗平均與 95% 區間，外加 P(τ_umpire > τ_catcher)。
 
     v1 的 README 拿 τ 的點值直接比大小；這張表的存在就是為了讓那個比較看得到區間。
+
+    `p_below_2023`：2024、2025 的 τ 低於 2023 的後驗機率，兩次獨立擬合的抽樣配對。
+    區間重疊不代表差異不顯著，所以跨季的變化直接報這個機率。
     """
+    ref = fits.get("2023_holdout")
     rows = []
     for fit_name, post in fits.items():
         tau = post["tau"]
         for group in ("catcher", "umpire", "pitcher"):
             v = np.asarray(tau[group])
+            below = (float((v < np.asarray(ref["tau"][group])).mean())
+                     if ref is not None and fit_name in ("2024_holdout", "2025_holdout") else None)
             rows.append({
                 "fit": fit_name, "group": group,
                 "tau_mean": float(v.mean()), "tau_sd": float(v.std()),
@@ -114,6 +120,7 @@ def _variance_components(fits: dict[str, dict]) -> pl.DataFrame:
                 "p_umpire_gt_catcher": float(
                     (np.asarray(tau["umpire"]) > np.asarray(tau["catcher"])).mean()
                 ) if group == "catcher" else None,
+                "p_below_2023": below,
             })
     return pl.DataFrame(rows)
 

@@ -91,7 +91,7 @@ All eleven fits (six seasons on the ABS zone, five on the stance zone) returned 
 | 2024 | 0.983 | 0.75 [0.57, 0.98] |
 | 2025 (outside the rule) | 0.735 | 0.92 [0.68, 1.21] |
 
-**By the rule: no detectable change.** Three of the four baseline seasons clear 0.95; 2021 does not. The expectation was right on both counts. τ fell from 0.226 in 2023 to 0.155 in 2026, but the decline began before ABS (0.206 in 2024, 0.169 in 2025), and 2025 cannot be told apart from 2026 (P = 0.735).
+**By the rule: no detectable change.** Three of the four baseline seasons clear 0.95; 2021 does not. The expectation was right on both counts. τ fell from 0.226 in 2023 to 0.155 in 2026, but the decline began before ABS (0.206 in 2024, 0.169 in 2025), and 2025 cannot be told apart from 2026 (posterior probability 0.735).
 
 For persistence, the correlation between a catcher's effect in consecutive seasons (catchers with ≥300 shadow-zone pitches in both) is:
 
