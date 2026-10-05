@@ -24,6 +24,7 @@ import polars as pl
 
 from models.baseline_gam import ARTIFACT_DIR
 from models.intervals import RUN_VALUE, leaderboard, separability
+from models.posterior_compare import independent_lower_probability
 
 RESULTS_DIR = Path(__file__).resolve().parent.parent / "results"
 SIM_DIR = Path(__file__).resolve().parent.parent / "sim" / "results"
@@ -100,7 +101,7 @@ def _variance_components(fits: dict[str, dict]) -> pl.DataFrame:
 
     v1 的 README 拿 τ 的點值直接比大小；這張表的存在就是為了讓那個比較看得到區間。
 
-    `p_below_2023`：2024、2025 的 τ 低於 2023 的後驗機率，兩次獨立擬合的抽樣配對。
+    `p_below_2023`：2024、2025 的 τ 低於 2023 的機率，使用獨立邊際後驗的交叉組合。
     區間重疊不代表差異不顯著，所以跨季的變化直接報這個機率。
     """
     ref = fits.get("2023_holdout")
@@ -109,7 +110,7 @@ def _variance_components(fits: dict[str, dict]) -> pl.DataFrame:
         tau = post["tau"]
         for group in ("catcher", "umpire", "pitcher"):
             v = np.asarray(tau[group])
-            below = (float((v < np.asarray(ref["tau"][group])).mean())
+            below = (independent_lower_probability(v, ref["tau"][group])
                      if ref is not None and fit_name in ("2024_holdout", "2025_holdout") else None)
             rows.append({
                 "fit": fit_name, "group": group,
@@ -246,7 +247,8 @@ def _abs_tables() -> dict[str, pl.DataFrame]:
 
     if _need(ae._fit_path(ae.ABS_SEASON, "abs"), "uv run python -m models.abs_era fit --zone abs") is None:
         return {}
-    comp = ae.q1_comparison("abs").with_columns(verdict=pl.lit(ae.q1_verdict(ae.q1_comparison("abs"))))
+    comp = ae.q1_comparison("abs")
+    comp = comp.with_columns(verdict=pl.lit(ae.q1_verdict(comp)))
     zones = [z for z in ae.ZONES if ae._load(z)]
     return {
         "tau": pl.concat([ae.tau_table(z) for z in zones], how="diagonal"),
@@ -372,6 +374,11 @@ def main() -> None:
     write("baseline_transport", _baseline_transport())
     write("baseline_drift", _baseline_drift())
     write("savant_decomposition", _savant_decomposition())
+
+    for name in ("corrected_external_checks", "per_pitch_recalibration"):
+        path = _need(ARTIFACT_DIR / f"{name}.parquet", "uv run python -m models.recalibration")
+        if path is not None:
+            write(name, pl.read_parquet(path))
 
     # ABS 後記（models/abs_era.py），寫到 results/abs/
     for name, df in _abs_tables().items():

@@ -32,6 +32,9 @@ import polars as pl
 
 from models.baseline_gam import (ARTIFACT_DIR, DATA_PROCESSED, X_ABS_MAX, Z_STD_MAX,
                                  Z_STD_MIN, _matrix, fit_baseline)
+from models.posterior_compare import (independent_all_lower_probability,
+                                      independent_lower_probability,
+                                      independent_ratio_summary)
 
 SEASONS = (2021, 2022, 2023, 2024, 2025, 2026)
 BASELINE_PERIOD = (2021, 2022, 2023, 2024)
@@ -170,29 +173,30 @@ def tau_table(zone: str = "abs") -> pl.DataFrame:
 def q1_comparison(zone: str = "abs") -> pl.DataFrame:
     """事前登記的主要比較：2026 對基準期每一季，外加 2025（不進判定）。
 
-    各季是獨立擬合，所以把兩季的 τ 後驗抽樣直接兩兩配對，得到差與比值的後驗。
+    各季按獨立後驗處理，使用邊際後驗的全部交叉組合；不按相同抽樣索引配對。
+    聯合下降機率另列，事前規則仍使用四個邊際機率的門檻。
     """
     fits = _load(zone)
     t26 = fits[ABS_SEASON]["tau"]["catcher"]
+    joint = independent_all_lower_probability(
+        t26, [fits[s]["tau"]["catcher"] for s in BASELINE_PERIOD])
     rows = []
     for s in (*BASELINE_PERIOD, ANTICIPATION_SEASON):
         ts = fits[s]["tau"]["catcher"]
-        ratio = t26 / ts
         rows.append({"zone": zone, "vs_season": s, "in_baseline_period": s in BASELINE_PERIOD,
-                     "p_tau2026_lower": float((t26 < ts).mean()),
-                     "ratio_median": float(np.median(ratio)),
-                     "ratio_eti_lo": float(np.percentile(ratio, 2.5)),
-                     "ratio_eti_hi": float(np.percentile(ratio, 97.5))})
+                     "p_tau2026_lower": independent_lower_probability(t26, ts),
+                     "p_tau2026_lower_than_all_baseline": joint,
+                     **independent_ratio_summary(t26, ts)})
     return pl.DataFrame(rows)
 
 
 def q1_verdict(comp: pl.DataFrame) -> str:
     p = comp.filter(pl.col("in_baseline_period"))["p_tau2026_lower"]
     if (p > DECISION_P).all():
-        return "有下降的證據"
+        return "達到低於全部基準季的事前門檻"
     if (p < 1 - DECISION_P).all():
-        return "有上升的證據"
-    return "偵測不到變化"
+        return "達到高於全部基準季的事前門檻"
+    return "未達事先設定的全面變化判定門檻"
 
 
 def persistence(zone: str = "abs") -> pl.DataFrame:
