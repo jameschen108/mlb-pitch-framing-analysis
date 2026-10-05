@@ -4,24 +4,22 @@
 
 [![tests](https://github.com/jameschen108/mlb-pitch-framing-analysis/actions/workflows/tests.yml/badge.svg)](https://github.com/jameschen108/mlb-pitch-framing-analysis/actions/workflows/tests.yml)
 
-This project started with a podcast episode in which a Taiwanese data scientist working in an MLB front office mentioned that catcher framing was the first project he was handed there. So I tried it.
+Some catchers get more strike calls than others on identical pitches. This project estimates how many for each catcher, puts an interval on every estimate, and tests whether those intervals can be trusted.
 
-Some catchers get more strike calls than others on identical pitches. The first version of this project measured that in two steps. It fit a strike-probability model on location and context but *not* catcher identity, and treated its prediction as the expected call for a pitch of that description. Then it let catcher, umpire, and pitcher effects compete for the residual. The result was a leaderboard, three variance components, and a correlation of 0.990 with Baseball Savant's published framing runs.
+**Approach.** For every called pitch in Statcast from 2021 to 2025, a baseline model gives an expected call from location and context, without catcher identity, and is always scored out of sample. On the pitches where that call is in doubt, a hierarchical model separates catcher, umpire and pitcher effects and puts a 95% posterior interval on each catcher's. A simulation with known true effects checks whether those intervals cover as often as they claim.
 
-This second version checks whether those numbers support what the first version said about them. The variance-component ordering does not, and the leaderboard only partly does. In both cases the reason is the same: every number in v1 was a point estimate with no interval, and its one synthetic-data test checked that effects landed on the right groups, not how the estimator behaves. The correlation holds up, but it shows less than it seems to.
+**Three findings.**
 
----
+1. **Some catchers clearly differ from zero, but most adjacent ranks cannot be told apart.** In 2023, 27 of 102 catchers have intervals that exclude zero, and 99 of the 101 adjacent pairs in the ranking are ordered with posterior probability below 0.6. The estimates track Baseball Savant's published framing runs closely (r = 0.94).
+2. **A high correlation with Savant cannot validate the intervals; simulation exposed a coverage gap.** In the simulated confounding scenarios, the simpler residual method's nominal 95% intervals cover 74–83% of the true effects, while the hierarchical model's cover 92.9–95.6% in every scenario, with the baseline treated as known. On real data, the interval on the difference between the two methods' Savant correlations includes zero in four of five seasons, so that check does not separate them.
+3. **Baseline drift distorts the unadjusted residuals; in-model calibration absorbed this season-wide shift.** Fit on 2021–2022, the baseline overpredicts 2025's strike rate by 2.6 points, a shift that comparing log loss across seasons did not reveal. The hierarchical model takes it up in its intercept and still correlates 0.955 with Savant in 2025. The residual method falls to 0.647, and returns to 0.964 once two calibration parameters are re-estimated on that season.
 
-## What changed
+<p align="center">
+  <img src="docs/images/en/caterpillar_2023.png" width="720"><br>
+  <em>2023: each catcher's effect with its 95% credible interval. Blue intervals exclude zero; gray ones do not.</em>
+</p>
 
-The original analysis is unchanged and still available at tag [`v1.0`](../../tree/v1.0). This round tested four things v1 said or relied on.
-
-| v1 | Verdict |
-|---|---|
-| Umpire-to-umpire variation exceeds catcher-to-catcher variation (τ 0.233 vs 0.192) | **Leans that way, but not established.** The umpire component is the larger one in four of five seasons, at posterior probability 0.81 on 2023, but no season reaches 0.95. One season pins the difference only to within about ±0.05 on the logit scale, and the differences themselves are at most 0.04, so the 2022 flip and the movement across shadow-zone thresholds are within that noise rather than evidence against |
-| The leaderboard ranks catchers on point values alone | **Partly supported.** 23 of 63 qualified catchers have intervals excluding zero; most adjacent ranks are coin flips |
-| r = 0.990 against Savant shows the location model is sound | **The correlation does not establish this.** Section 2 supplies out-of-sample predictive and calibration checks, with limitations. One re-estimated intercept restores the Savant correlation to 0.989; that agreement cannot assess interval calibration |
-| The variational fit behind all of this had not converged | **Similar ordering in the tested subset.** On the same 2022 shadow-zone data, per-catcher VB and NUTS effects correlate at r = 0.9999. This does not establish equal magnitudes or make every unconverged v1 fit harmless |
+This is the second version of the project. What the first version claimed, and which of those claims held up, is in [From v1 to v2](#from-v1-to-v2) further down.
 
 ---
 
@@ -130,11 +128,7 @@ The shadow-zone threshold moves the ordering too. On the pooled train pool, P(τ
 
 ### 5. How far apart are catchers?
 
-<p align="center">
-  <img src="docs/images/en/caterpillar_2023.png" width="720">
-</p>
-
-Gray intervals cover zero; blue ones do not. 2023:
+The figure at the top of this page shows 2023. In numbers:
 
 | Restriction | Catchers | Intervals excluding zero | Pairs ordered with ≥95% probability |
 |---|--:|--:|--:|
@@ -244,6 +238,25 @@ Framing runs over shadow-zone pitches, with 95% credible intervals, next to Sava
 | Martín Maldonado | 1,154 | −7.4 | [−11.7, −3.0] | −15.7 |
 
 The names at both ends match v1. Hedges, Álvarez and Bailey led v1's 2023 table too, and Maldonado and Ruiz were two of its bottom three. What changed is how much confidence the list can carry: 40 of the 63 qualified catchers have intervals that include zero.
+
+---
+
+## From v1 to v2
+
+This project started with a podcast episode in which a Taiwanese data scientist working in an MLB front office mentioned that catcher framing was the first project he was handed there. So I tried it.
+
+The first version measured framing in two steps. It fit a strike-probability model on location and context but *not* catcher identity, and treated its prediction as the expected call for a pitch of that description. Then it let catcher, umpire, and pitcher effects compete for the residual. The result was a leaderboard, three variance components, and a correlation of 0.990 with Baseball Savant's published framing runs.
+
+This second version checks whether those numbers support what the first version said about them. The variance-component ordering does not, and the leaderboard only partly does. In both cases the reason is the same: every number in v1 was a point estimate with no interval, and its one synthetic-data test checked that effects landed on the right groups, not how the estimator behaves. The correlation still reproduces, but it shows less than it seems to.
+
+The original analysis is unchanged and still available at tag [`v1.0`](../../tree/v1.0). This round tested four things v1 said or relied on.
+
+| v1 | Verdict |
+|---|---|
+| Umpire-to-umpire variation exceeds catcher-to-catcher variation (τ 0.233 vs 0.192) | **Leans that way, but not established.** The umpire component is the larger one in four of five seasons, at posterior probability 0.81 on 2023, but no season reaches 0.95. One season pins the difference only to within about ±0.05 on the logit scale, and the differences themselves are at most 0.04, so the 2022 flip and the movement across shadow-zone thresholds are within that noise rather than evidence against |
+| The leaderboard ranks catchers on point values alone | **Partly supported.** 23 of 63 qualified catchers have intervals excluding zero; most adjacent ranks are coin flips |
+| r = 0.990 against Savant shows the location model is sound | **The correlation does not establish this.** Section 2 supplies out-of-sample predictive and calibration checks, with limitations. One re-estimated intercept restores the Savant correlation to 0.989; that agreement cannot assess interval calibration |
+| The variational fit behind all of this had not converged | **Similar ordering in the tested subset.** On the same 2022 shadow-zone data, per-catcher VB and NUTS effects correlate at r = 0.9999. This does not establish equal magnitudes or make every unconverged v1 fit harmless |
 
 ---
 
