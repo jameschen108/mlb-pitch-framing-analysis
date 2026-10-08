@@ -22,10 +22,10 @@ The zero-mean random-effect prior anchors the reference on the logit scale; the 
 
 **Procedures compared against this estimand.** Two:
 
-- **Unadjusted residuals** (the v1 approach): `mean(actual − baseline predicted)` over the catcher’s pitches, with binomial standard-error intervals. This is a proxy for Δ: interpreting it as that same contrast requires the baseline to represent the zero-effect receiver on those pitches. Umpire/pitcher contributions and the difference between a marginal baseline and the conditional reference can violate this, even when assignments are independent.
+- **Unadjusted estimator** (the v1 approach): `mean(actual − baseline predicted)` over the catcher’s pitches, with binomial standard-error intervals. Summed and multiplied by 0.125 runs per strike, it gives unadjusted runs. This is a proxy for Δ: interpreting it as that same contrast requires the baseline to represent the zero-effect receiver on those pitches. Umpire/pitcher contributions and the difference between a marginal baseline and the conditional reference can violate this, even when assignments are independent.
 - **Hierarchical model**: crossed random intercepts for catcher, umpire and pitcher on the residual, with the baseline logit entering as a calibration covariate whose coefficient is estimated rather than fixed at 1. Δ is computed per posterior draw and summarized.
 
-Δ is used instead of the logit-scale coefficient `u_catcher` because the residual method has no such coefficient. Evaluating both procedures against a probability-scale truth matches the units of the published leaderboard; it does not establish that unadjusted residuals are unbiased for the same conditional contrast.
+Δ is used instead of the logit-scale coefficient `u_catcher` because the unadjusted estimator has no such coefficient. Evaluating both procedures against a probability-scale truth matches the units of the published leaderboard; it does not establish that the unadjusted estimator is unbiased for the same conditional contrast.
 
 ---
 
@@ -42,7 +42,7 @@ The whole measure rests on the residual `actual − predicted`. A baseline model
 
 The two schemes differ in form, but both are out of sample.
 
-On this measure, skipping the step matters less than it first appeared. On 2023, the same unadjusted estimator correlates with Savant at 0.990 using an in-sample baseline and 0.958 using an out-of-sample one. Re-estimating only the out-of-sample baseline's intercept on 2023 brings it to 0.989 ([`results/savant_decomposition.csv`](results/savant_decomposition.csv)). So most of the gap is the season's overall strike rate, which a baseline from other seasons does not have, and which residual runs, lacking an intercept, turn into a term proportional to playing time. Before the correction, a catcher's runs correlate −0.38 with the number of pitches he received; after it, −0.16, close to Savant's −0.14. The remaining difference is small, but it is not a measurement of flattened residuals: the 0.990 and the 0.989 come from different pipelines. Re-estimating one parameter on 2023 is itself in-sample, but a single intercept cannot overfit 350,000 pitches. The case for out-of-sample baselines rests on the argument at the top of this section, not on this number. Cross-fitting within 2021–2022 has much less of this problem, because every fold's model is fit on the same two seasons it predicts. It is not zero: the pooled fit sits between the two seasons, under-predicting 2021's overall strike rate by 0.24 points and over-predicting 2022's by 0.24. The train-only model applied to 2023–2025 is off by 0.6 to 2.6 points (§4.1).
+On this measure, skipping the step matters less than it first appeared. On 2023, the same unadjusted estimator correlates with Savant at 0.990 using an in-sample baseline and 0.958 using an out-of-sample one. Re-estimating only the out-of-sample baseline's intercept on 2023 brings it to 0.989 ([`results/savant_decomposition.csv`](results/savant_decomposition.csv)). So most of the gap is the season's overall strike rate, which a baseline from other seasons does not have, and which unadjusted runs, lacking an intercept, turn into a term proportional to playing time. Before the correction, a catcher's runs correlate −0.38 with the number of pitches he received; after it, −0.16, close to Savant's −0.14. The remaining difference is small, but it is not a measurement of flattened residuals: the 0.990 and the 0.989 come from different pipelines. Re-estimating one parameter on 2023 is itself in-sample, but a single intercept cannot overfit 350,000 pitches. The case for out-of-sample baselines rests on the argument at the top of this section, not on this number. Cross-fitting within 2021–2022 has much less of this problem, because every fold's model is fit on the same two seasons it predicts. It is not zero: the pooled fit sits between the two seasons, under-predicting 2021's overall strike rate by 0.24 points and over-predicting 2022's by 0.24. The train-only model applied to 2023–2025 is off by 0.6 to 2.6 points (§4.1).
 
 ### 2.2 Splitting by game, not by pitch
 
@@ -342,7 +342,7 @@ data/
   official.py          Baseball Savant framing leaderboard (comparison)
 models/
   baseline_gam.py      v1 first-stage GAM strike-probability model
-  framing_runs.py      v1 unadjusted residual framing runs
+  framing_runs.py      v1 unadjusted runs
   hierarchical.py      v1 two-stage crossed random-effects model (VB)
   reliability.py       split-half and year-over-year reliability
   splits.py            train/validation by game, 2023 locked

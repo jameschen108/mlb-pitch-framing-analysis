@@ -25,7 +25,7 @@ COLOR = {"hierarchical": "#1f77b4", "residual_runs": "#d62728", "abs": "#d95f02"
 LABELS = {
     "en": {
         "hier": "Hierarchical (NUTS)",
-        "resid": "Residual runs (unadjusted)",
+        "resid": "Unadjusted estimator",
         "nominal": "nominal 95%",
         "sweep_title": "How much confounding before the intervals stop meaning anything",
         "sweep_x": "Unmeasured confounding, relative to the true catcher effect",
@@ -52,7 +52,7 @@ LABELS = {
     },
     "zh": {
         "hier": "階層模型（NUTS）",
-        "resid": "未調整殘差",
+        "resid": "未調整估計式",
         "nominal": "名目 95%",
         "sweep_title": "混淆要多大，區間才會失去意義",
         "sweep_x": "未觀測混淆的大小（相對於真實捕手效果）",
